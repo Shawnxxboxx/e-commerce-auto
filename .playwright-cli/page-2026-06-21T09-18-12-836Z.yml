@@ -1,0 +1,30 @@
+- generic [active] [ref=e1]:
+  - img
+  - generic [ref=e3]:
+    - generic [ref=e5]:
+      - paragraph [ref=e9] [cursor=pointer]: 帮助中心
+      - combobox [ref=e11]:
+        - generic [ref=e12]:
+          - textbox "请在这里输入关键词搜索" [ref=e13]
+          - generic [ref=e15]: 
+    - generic [ref=e16]:
+      - generic [ref=e20]:
+        - paragraph [ref=e21]: 所有文章
+        - menubar
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e35]: "阅读量:"
+          - generic [ref=e37]:
+            - generic [ref=e38]: 更新于：NaN/aN/aN aN:aN:aN
+            - generic [ref=e39]: 发布于：NaN/aN/aN aN:aN:aN
+        - generic [ref=e42]:
+          - paragraph [ref=e43]: 文档内容是否对您有帮助？
+          - generic [ref=e44]:
+            - generic [ref=e45]:
+              - generic [ref=e46] [cursor=pointer]:
+                - img [ref=e47]
+                - paragraph [ref=e49]: 有帮助
+              - generic [ref=e50] [cursor=pointer]:
+                - img [ref=e51]
+                - paragraph [ref=e53]: 无帮助
+            - text: 
