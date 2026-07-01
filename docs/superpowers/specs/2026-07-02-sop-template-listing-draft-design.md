@@ -1,71 +1,71 @@
-# SOP Template Listing Draft Design
+# SOP 模板与上架草稿设计
 
-## Goal
+## 目标
 
-Build a template-driven product listing workflow for TikTok Shop full-service publishing through Mabang. The current browser automation remains the final publishing executor. The new work adds SOP template management, product material parsing, AI-assisted draft generation through `codex exec`, human review, and conversion into the existing `TikTokPublishRequest`.
+为 TikTok Shop 全托管商品上架建设一套“模板驱动”的生成与审核流程。现有浏览器自动化继续作为最终上架执行器；新增能力负责 SOP 模板管理、商品素材包解析、通过 `codex exec` 生成上架草稿、人工审核草稿，并将审核后的草稿转换为现有的 `TikTokPublishRequest`。
 
-The first version uses MySQL for persistence and MyBatis-Plus for mapper/service plumbing. `codex exec` is the temporary AI engine so the workflow can run before a dedicated model API key is available. The AI integration must be hidden behind an interface so it can later be replaced by OpenAI API or another model provider.
+第一版使用 MySQL 存储数据，使用 MyBatis-Plus 实现 Mapper 和基础 CRUD。由于目前没有单独购买模型 API key，AI 生成先通过 `codex exec` 实现；该能力必须通过接口隔离，后续可以替换为 OpenAI API 或其他模型服务。
 
-## Scope
+## 范围
 
-In scope:
+第一版包含：
 
-- SOP template CRUD.
-- Product material package parsing.
-- A readable `属性信息.txt` format.
-- Listing draft generation through `codex exec`.
-- Human-editable listing drafts.
-- Draft approval and publishing through the existing `MabangPublisher.publish`.
-- MySQL schema and MyBatis-Plus module boundaries.
+- SOP 模板增删改查中的新增、查询、编辑。
+- 商品素材包解析。
+- 易于人工填写和代码解析的 `属性信息.txt` 格式。
+- 通过 `codex exec` 生成上架草稿。
+- 草稿人工审核与编辑。
+- 审核后调用现有 `MabangPublisher.publish` 保存马帮草稿。
+- MySQL 表结构和 MyBatis-Plus 模块边界。
 
-Out of scope for the first version:
+第一版不包含：
 
-- Full automatic image generation through `gpt-image-2` or another image API.
-- Multi-user permission control.
-- Template version tables.
-- Complex reporting and analytics.
-- Replacing the existing Mabang browser automation.
+- 通过 `gpt-image-2` 或其他图片 API 全自动生成真实商品主图。
+- 多用户权限管理。
+- 模板版本表。
+- 复杂报表和数据分析。
+- 重写现有马帮浏览器自动化。
 
-## Current Context
+## 当前项目上下文
 
-The existing project is a Spring Boot application with Playwright automation. `MabangPublisher.publish(TikTokPublishRequest request)` already accepts most fields needed for Mabang TikTok full-service listing:
+当前项目是 Spring Boot 应用，已经包含 Playwright 浏览器自动化。`MabangPublisher.publish(TikTokPublishRequest request)` 已经覆盖马帮 TikTok 全托管上架所需的大部分字段：
 
-- shop and category
-- category attributes
-- source URL
-- Chinese and English titles
-- product images, size chart image, detail images, description images
-- variant attributes and preview images
-- transaction rows with SKU, price, stock, dimensions, and weight
-- final save/publish action
+- 店铺和类目。
+- 分类属性。
+- 来源 URL。
+- 中文标题和英文标题。
+- 产品首图、尺码表图、细节图、描述图。
+- 变种属性和变种预览图。
+- SKU、价格、库存、尺寸、重量等交易信息。
+- 保存或刊登动作。
 
-The new design treats `MabangPublisher` as the final executor. It should not know about SOP templates, raw material folders, `codex exec`, or human review state.
+新设计中，`MabangPublisher` 只作为最终执行器。它不关心 SOP 模板、原始素材目录、`codex exec`、草稿审核状态。
 
-## Architecture
+## 总体架构
 
-The workflow has five layers:
+整体流程分为五层：
 
 ```text
-SOP template
--> product material package
--> AI draft generation
--> human draft review
--> Mabang browser publishing
+SOP 模板
+-> 商品素材包
+-> AI 草稿生成
+-> 人工草稿审核
+-> 马帮浏览器上架
 ```
 
-Main components:
+主要组件：
 
-- `SopTemplate`: lightweight template managed by the frontend.
-- `ProductMaterialPackage`: parsed representation of one product folder.
-- `ListingAiGenerator`: interface for AI draft generation.
-- `CodexExecListingAiGenerator`: first implementation using `codex exec`.
-- `ListingDraft`: full editable draft shown to the operator.
-- `ListingDraftToTikTokPublishRequestMapper`: converts approved drafts to `TikTokPublishRequest`.
-- `MabangPublisher`: existing browser automation executor.
+- `SopTemplate`：前端可管理的轻量 SOP 模板。
+- `ProductMaterialPackage`：一个商品素材目录解析后的结构化对象。
+- `ListingAiGenerator`：AI 草稿生成接口。
+- `CodexExecListingAiGenerator`：第一版 AI 生成实现，底层调用 `codex exec`。
+- `ListingDraft`：前端展示和人工编辑的完整上架草稿。
+- `ListingDraftToTikTokPublishRequestMapper`：将审核通过的草稿转换为 `TikTokPublishRequest`。
+- `MabangPublisher`：已有马帮浏览器自动化执行器。
 
-## SOP Template Model
+## SOP 模板模型
 
-The first version keeps templates intentionally small:
+第一版模板保持轻量：
 
 ```text
 SopTemplate
@@ -78,14 +78,14 @@ SopTemplate
 - updateTime
 ```
 
-Template behavior:
+模板规则：
 
-- `titlePrompt` is one prompt that asks AI to generate both Chinese and English title data.
-- `mainImagePrompt` describes how to create or prepare the main product image.
-- There is no online/offline status. Templates are directly editable.
-- Listing drafts store prompt snapshots so later template edits do not change historical draft meaning.
+- `titlePrompt` 是一份标题提示词，用来要求 AI 同时生成中文和英文标题信息。
+- `mainImagePrompt` 用来描述主图生成或主图处理要求。
+- 不设置上线/下线状态，模板可直接编辑并被选择使用。
+- 草稿生成时必须保存模板提示词快照，避免模板后续修改影响历史草稿的可追溯性。
 
-Listing drafts must persist:
+草稿中必须保存：
 
 ```text
 templateId
@@ -94,7 +94,7 @@ titlePromptSnapshot
 mainImagePromptSnapshot
 ```
 
-## MySQL Schema
+## MySQL 表结构
 
 ### sop_template
 
@@ -132,11 +132,11 @@ CREATE TABLE listing_draft (
 );
 ```
 
-`draft_json` stores the full `ListingDraft`. This keeps the first implementation small and flexible. If later queries need to filter by SKU, title, attributes, or publish result, detail tables can be added without changing the draft workflow.
+`draft_json` 保存完整 `ListingDraft`。这样第一版不需要拆很多明细表，后续如果要按 SKU、标题、属性或发布结果查询，再逐步增加明细表。
 
-## MyBatis-Plus Modules
+## MyBatis-Plus 模块设计
 
-Recommended package layout:
+推荐包结构：
 
 ```text
 template
@@ -171,10 +171,10 @@ ai
 
 publish
 - ListingDraftToTikTokPublishRequestMapper
-- existing MabangPublisher
+- 复用已有 MabangPublisher
 ```
 
-Mapper shape:
+Mapper 形式：
 
 ```java
 @Mapper
@@ -186,7 +186,7 @@ public interface ListingDraftMapper extends BaseMapper<ListingDraftEntity> {
 }
 ```
 
-Required dependencies:
+需要新增依赖：
 
 ```xml
 <dependency>
@@ -201,13 +201,13 @@ Required dependencies:
 </dependency>
 ```
 
-## Product Material Package
+## 商品素材包结构
 
-Each product is stored as a folder with fixed subdirectories:
+每个商品使用一个独立目录，目录结构固定：
 
 ```text
 product-materials/
-  product-name/
+  商品名称/
     主图/
       1.jpg
       2.jpg
@@ -220,14 +220,14 @@ product-materials/
     属性信息.txt
 ```
 
-Directory rules:
+目录规则：
 
-- `主图/` is used as source material for main image generation or preparation.
-- `副图/` is used directly as description images. All images are included and sorted by filename.
-- `尺码表/` supplies the product size chart image and size-related image material.
-- `属性信息.txt` contains structured text parsed into product, attribute, variant, and transaction data.
+- `主图/`：作为主图生成或主图处理的来源素材。
+- `副图/`：直接作为描述图使用，全部图片按文件名排序后进入草稿。
+- `尺码表/`：提供商品尺码表图片，也可作为规格相关图片素材。
+- `属性信息.txt`：保存产品信息、分类属性、变种属性和交易信息。
 
-Supported image extensions in the first version:
+第一版支持图片格式：
 
 ```text
 .jpg
@@ -235,20 +235,20 @@ Supported image extensions in the first version:
 .png
 ```
 
-## Attribute Info Text Format
+## 属性信息.txt 格式约定
 
-The text format must be easy for operators to edit and easy for Java to parse.
+文本格式需要同时满足“运营好填写”和“代码好解析”。
 
-Rules:
+解析规则：
 
-- Empty lines are ignored.
-- Lines beginning with `#` are comments.
-- `[section]` starts a section.
-- Normal fields use `key=value`.
-- Tables use `|` as the delimiter.
-- Image references use filenames relative to their fixed directory, not absolute paths.
+- 空行忽略。
+- `#` 开头的行作为注释。
+- `[分段名]` 表示一个分段。
+- 普通字段使用 `key=value`。
+- 表格使用 `|` 分隔。
+- 图片只写相对于固定目录的文件名，不写绝对路径。
 
-Example:
+示例：
 
 ```text
 [产品信息]
@@ -277,7 +277,7 @@ Example:
 套装1|均码|JIT备货|黑白剪刀|黑白剪刀-套装1-均码|5|999|21|9|2|150
 ```
 
-Parser output:
+解析结果：
 
 ```text
 ProductMaterialPackage
@@ -295,13 +295,13 @@ ProductMaterialPackage
 - detailImagePaths
 ```
 
-The parser should fail fast when required sections or table columns are missing.
+如果缺少必需分段或交易信息表头不符合约定，解析器应该直接失败并返回明确错误。
 
-## Listing Draft Model
+## ListingDraft 草稿模型
 
-`ListingDraft` is the editable object returned by AI and reviewed by the operator.
+`ListingDraft` 是 AI 输出和人工审核的核心对象。
 
-Recommended structure:
+推荐结构：
 
 ```text
 ListingDraft
@@ -369,7 +369,7 @@ publishResult
 - publishErrorMessage
 ```
 
-Draft statuses:
+草稿状态：
 
 ```text
 GENERATED
@@ -379,11 +379,11 @@ PUBLISHED
 FAILED
 ```
 
-Publishing is allowed only when status is `APPROVED`.
+只有状态为 `APPROVED` 的草稿才能调用上架。
 
-## Codex Exec Integration
+## Codex Exec 集成
 
-`ListingAiGenerator` hides the AI provider:
+使用接口隔离 AI 提供方：
 
 ```java
 public interface ListingAiGenerator {
@@ -391,13 +391,13 @@ public interface ListingAiGenerator {
 }
 ```
 
-First implementation:
+第一版实现：
 
 ```text
 CodexExecListingAiGenerator
 ```
 
-Future replacements:
+后续可替换为：
 
 ```text
 OpenAiListingAiGenerator
@@ -405,59 +405,59 @@ DashScopeListingAiGenerator
 LocalModelListingAiGenerator
 ```
 
-The prompt builder passes Codex:
+`CodexPromptBuilder` 需要传给 Codex：
 
-- fixed system SOP rules
-- `template.titlePrompt`
-- `template.mainImagePrompt`
-- parsed `ProductMaterialPackage`
-- image path lists
-- JSON schema instructions for `ListingDraft`
+- 系统固定 SOP 规则。
+- `template.titlePrompt`。
+- `template.mainImagePrompt`。
+- 已解析的 `ProductMaterialPackage`。
+- 主图、副图、尺码表图片路径清单。
+- `ListingDraft` JSON 输出要求。
 
-Codex responsibilities in the first version:
+第一版 Codex 负责：
 
-- Generate Chinese and English product names.
-- Generate Chinese and English listing titles.
-- Generate `mainImagePrompt` for the product.
-- Preserve parsed category attributes, variants, and transaction rows unless the prompt explicitly asks for normalization.
-- Produce risk review notes.
-- Output strict JSON compatible with `ListingDraft`.
+- 生成中文产品名称和英文产品名称。
+- 生成中文标题和英文标题。
+- 结合模板主图提示词生成本商品的 `mainImagePrompt`。
+- 保留解析出的分类属性、变种属性和交易信息，除非提示词要求做格式归一化。
+- 生成风险检查说明。
+- 输出符合 `ListingDraft` 结构的 JSON。
 
-Codex does not directly generate the real JPG/PNG main image in the first version. It prepares the prompt and image task data. Operators place the final main image in the expected path before approval, or a later image API implementation can create it automatically.
+第一版 Codex 不直接生成真实 JPG/PNG 主图。它只生成主图提示词和图片任务信息。运营需要在审核前准备最终主图文件，后续也可以接入图片 API 自动生成。
 
-## Image Handling
+## 图片处理规则
 
-Main product image:
+主图：
 
 ```text
-主图/ source images
+主图/ 来源图片
 -> template.mainImagePrompt
 -> draft.imageInfo.mainImagePrompt
 -> finalMainImagePath
 ```
 
-In the first version, `finalMainImagePath` may be manually prepared. The draft cannot be approved until that file exists.
+第一版 `finalMainImagePath` 可以由人工准备。该文件不存在时，草稿不能审核通过。
 
-Description images:
+描述图：
 
 ```text
-副图/ all images sorted by filename
+副图/ 中全部图片按文件名排序
 -> draft.imageInfo.descriptionImagePaths
 -> TikTokPublishRequest.descriptionImagePaths
 ```
 
-Size chart:
+尺码表：
 
 ```text
 属性信息.txt [变种属性] 尺码表图片
 -> 尺码表/{filename}
 ```
 
-If `尺码表图片` is omitted, use the first image in `尺码表/` sorted by filename.
+如果没有填写 `尺码表图片`，默认取 `尺码表/` 目录中按文件名排序后的第一张图片。
 
-## Draft To Publish Mapping
+## 草稿到上架请求的映射
 
-Approved drafts are converted to `TikTokPublishRequest`:
+审核通过后，`ListingDraft` 转换为 `TikTokPublishRequest`：
 
 ```text
 ListingDraft.basicInfo.shopName
@@ -503,14 +503,14 @@ ListingDraft.transactionRows
 -> TikTokPublishRequest.transactionInfo
 
 publish=false
--> save draft in Mabang for human confirmation
+-> 在马帮保存草稿，等待人工最终确认
 ```
 
-The generated publish request should be stored in `listing_draft.publish_request_json` before invoking `MabangPublisher.publish`.
+调用 `MabangPublisher.publish` 前，需要将生成的发布请求保存到 `listing_draft.publish_request_json`。
 
-## API Design
+## API 设计
 
-SOP template APIs:
+SOP 模板接口：
 
 ```text
 GET  /api/sop-templates
@@ -519,7 +519,7 @@ GET  /api/sop-templates/{templateId}
 PUT  /api/sop-templates/{templateId}
 ```
 
-Material package parsing:
+素材包解析接口：
 
 ```text
 POST /api/material-packages/parse
@@ -529,7 +529,7 @@ POST /api/material-packages/parse
 }
 ```
 
-Draft APIs:
+草稿接口：
 
 ```text
 POST /api/listing-drafts/generate
@@ -539,7 +539,7 @@ POST /api/listing-drafts/{draftId}/approve
 POST /api/listing-drafts/{draftId}/publish
 ```
 
-Draft generation request:
+草稿生成请求：
 
 ```json
 {
@@ -548,80 +548,80 @@ Draft generation request:
 }
 ```
 
-## Frontend Flow
+## 前端页面流程
 
-First version pages:
+第一版页面：
 
 ```text
-Template Management
-- template list
-- create template
-- edit template
-- no delete in the first version to avoid accidental loss
+模板管理
+- 模板列表
+- 新建模板
+- 编辑模板
+- 第一版不做删除，避免误删模板
 
-Generate Draft
-- select template
-- input material package path
-- parse material package
-- preview parsed material
-- run AI draft generation
+生成草稿
+- 选择模板
+- 输入素材包路径
+- 解析素材包
+- 预览解析结果
+- 执行 AI 草稿生成
 
-Draft Review
-- edit titles
-- review main image prompt
-- check final main image path
-- review description images and size chart
-- review category attributes
-- review variants and transaction rows
-- approve
-- publish to Mabang
+草稿审核
+- 编辑标题
+- 查看主图提示词
+- 检查最终主图路径
+- 查看副图和尺码表
+- 查看分类属性
+- 查看变种和交易信息
+- 审核通过
+- 发布到马帮
 ```
 
-The UI should be practical and dense. This is an operator tool, not a marketing page.
+页面应偏操作台风格，信息密度适中，优先服务运营反复使用，不做营销页。
 
-## Validation And Error Handling
+## 校验与错误处理
 
-Material package validation:
+素材包校验：
 
-- Missing `主图/`.
-- Missing `副图/`.
-- Missing `尺码表/`.
-- Missing `属性信息.txt`.
-- Empty required image directory.
-- Unsupported image extension.
-- Missing required text sections.
-- Invalid transaction table header.
-- Transaction row column count mismatch.
+- 缺少 `主图/`。
+- 缺少 `副图/`。
+- 缺少 `尺码表/`。
+- 缺少 `属性信息.txt`。
+- 必需图片目录为空。
+- 图片格式不支持。
+- 缺少必需文本分段。
+- 交易信息表头不符合约定。
+- 交易信息行列数不匹配。
 
-AI generation validation:
+AI 生成校验：
 
-- `codex` command not found.
-- `codex exec` timeout.
-- Output is not valid JSON.
-- Output does not match `ListingDraft` schema.
-- Required fields are empty.
+- 找不到 `codex` 命令。
+- `codex exec` 超时。
+- 输出不是合法 JSON。
+- 输出不符合 `ListingDraft` 结构。
+- 必填字段为空。
 
-Approval validation:
+审核校验：
 
-- Chinese title is empty.
-- English title is empty.
-- Category attributes are empty.
-- Final main image file does not exist.
-- Description images are empty.
-- Transaction rows are missing price, stock, dimensions, or weight.
-- Variant attributes do not match transaction rows.
+- 中文标题为空。
+- 英文标题为空。
+- 分类属性为空。
+- 最终主图文件不存在。
+- 描述图为空。
+- 交易信息缺少价格、库存、尺寸或重量。
+- 变种属性和交易行不匹配。
 
-Publish validation:
+发布校验：
 
-- Draft is not `APPROVED`.
-- Chrome CDP is not connected.
-- Mabang page is not logged in.
-- Shop or category cannot be selected.
-- Required page fields cannot be located.
-- Image upload fails.
-- Mabang save draft action fails.
+- 草稿不是 `APPROVED` 状态。
+- Chrome CDP 未连接。
+- 马帮页面未登录。
+- 店铺或类目无法选择。
+- 必填页面字段无法定位。
+- 图片上传失败。
+- 马帮保存草稿失败。
 
-Errors are persisted to `listing_draft`:
+错误需要持久化到 `listing_draft`：
 
 ```text
 last_error_type
@@ -629,51 +629,51 @@ last_error_message
 publish_screenshot_path
 ```
 
-## Testing Strategy
+## 测试策略
 
-Unit tests:
+单元测试：
 
-- `AttributeInfoTextParser` parses all sections.
-- Parser rejects missing sections and invalid transaction headers.
-- Material package scanner sorts images by filename.
-- `SopTemplateService` creates and updates templates.
-- `ListingDraftToTikTokPublishRequestMapper` maps all fields.
-- Draft approval validation blocks missing final main image.
-- Codex output parser rejects invalid JSON.
+- `AttributeInfoTextParser` 能解析所有分段。
+- 解析器能拒绝缺失分段和错误交易表头。
+- 素材包扫描器能按文件名排序图片。
+- `SopTemplateService` 能创建和更新模板。
+- `ListingDraftToTikTokPublishRequestMapper` 能映射所有字段。
+- 草稿审核校验能拦截缺少最终主图的情况。
+- Codex 输出解析器能拒绝非法 JSON。
 
-Integration tests:
+集成测试：
 
-- MyBatis-Plus mapper can insert and read `sop_template`.
-- MyBatis-Plus mapper can insert and read `listing_draft`.
-- Draft generation persists template prompt snapshots.
+- MyBatis-Plus Mapper 能写入和读取 `sop_template`。
+- MyBatis-Plus Mapper 能写入和读取 `listing_draft`。
+- 草稿生成会保存模板提示词快照。
 
-Manual acceptance:
+人工验收：
 
-- Real `codex exec` generation using a sample material package.
-- Real browser publish through `MabangPublisher.publish`, because it depends on Chrome login state and Mabang page structure.
+- 使用示例素材包真实执行一次 `codex exec` 草稿生成。
+- 使用 `MabangPublisher.publish` 真实保存一次马帮草稿，因为该流程依赖 Chrome 登录态和马帮页面结构。
 
-## Implementation Order
+## 实施顺序
 
-1. Add MyBatis-Plus and MySQL configuration.
-2. Add `sop_template` table and template CRUD.
-3. Add material package parser and `属性信息.txt` parser.
-4. Add `ListingDraft` model and `listing_draft` table.
-5. Add `ListingDraftToTikTokPublishRequestMapper`.
-6. Add draft validation and approval.
-7. Add `CodexExecListingAiGenerator`.
-8. Add draft generation API.
-9. Add publish API that calls `MabangPublisher.publish`.
-10. Add frontend pages for template management, generation, and review.
+1. 增加 MyBatis-Plus 和 MySQL 配置。
+2. 创建 `sop_template` 表和模板 CRUD。
+3. 实现素材包解析器和 `属性信息.txt` 解析器。
+4. 创建 `ListingDraft` 模型和 `listing_draft` 表。
+5. 实现 `ListingDraftToTikTokPublishRequestMapper`。
+6. 实现草稿校验和审核通过逻辑。
+7. 实现 `CodexExecListingAiGenerator`。
+8. 实现草稿生成接口。
+9. 实现调用 `MabangPublisher.publish` 的发布接口。
+10. 实现模板管理、草稿生成、草稿审核前端页面。
 
-## Decisions
+## 已确认决策
 
-- SOP templates store only name, title prompt, and main image prompt.
-- Template online/offline status is not used.
-- One title prompt generates both Chinese and English title data.
-- `属性信息.txt` is the structured source for parsed category, variant, and transaction information.
-- Product description images come directly from all images in `副图/`.
-- Main image generation is abstracted, but first version only creates prompt/task data and requires a final image path before approval.
-- MySQL is used from the first version.
-- MyBatis-Plus is used for mapper and basic CRUD.
-- Draft JSON is stored as JSON in MySQL to avoid over-modeling the first version.
-- Existing `MabangPublisher.publish` remains the final executor.
+- SOP 模板只保存模板名称、标题提示词、主图提示词。
+- 不使用模板上线/下线状态。
+- 一份标题提示词同时生成中文和英文标题数据。
+- `属性信息.txt` 是分类属性、变种属性和交易信息的结构化来源。
+- 商品描述图直接使用 `副图/` 目录下全部图片。
+- 主图生成能力先做抽象，第一版只生成提示词和任务数据，审核前必须有最终主图路径。
+- 第一版使用 MySQL。
+- Mapper 和基础 CRUD 使用 MyBatis-Plus。
+- 草稿主体以 JSON 形式存入 MySQL，避免第一版过度拆表。
+- 现有 `MabangPublisher.publish` 保持最终执行器定位。
