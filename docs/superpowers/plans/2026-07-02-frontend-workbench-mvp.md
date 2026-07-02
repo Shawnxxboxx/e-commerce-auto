@@ -1,18 +1,18 @@
-# SOP Frontend Workbench MVP Implementation Plan
+# SOP 上架工作台前端最小可用版本实施计划
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **给执行代理的说明：** 实施本计划时必须使用 `superpowers:subagent-driven-development`（推荐）或 `superpowers:executing-plans`。任务步骤使用 checkbox（`- [ ]`）跟踪进度。
 
-**Goal:** Build a React + Ant Design workbench under `frontend/` for SOP template management, material package parsing, image preview, and draft review scaffolding.
+**目标：** 在项目根目录新增 `frontend/`，实现 React + Ant Design 工作台，覆盖 SOP 模板管理、素材包解析、图片预览和草稿审核壳子。
 
-**Architecture:** Keep backend and frontend loosely coupled through REST APIs. Add one backend read-only image endpoint so browser previews can display local material images. Frontend state stays local for this MVP: parsed material data can be promoted into a draft preview without persisting draft records yet.
+**架构：** 后端继续提供 REST API，前端通过 Vite 代理访问 `/api`。本轮新增一个后端本机图片只读预览接口，解决浏览器无法直接读取本机绝对路径图片的问题。前端草稿数据先保存在页面状态中，不落库，不接真实 CodexExec。
 
-**Tech Stack:** Java 21, Spring Boot 4.1, JUnit 5, React, TypeScript, Vite, Ant Design, Ant Design Icons.
+**技术栈：** Java 21、Spring Boot 4.1、JUnit 5、React、TypeScript、Vite、Ant Design、Ant Design Icons。
 
 ---
 
-## File Structure
+## 文件结构
 
-Create or modify these files:
+本计划会新增或修改这些文件：
 
 ```text
 src/main/java/com/auto/ecommerce/ecommerceauto/localfile/controller/LocalFileController.java
@@ -36,29 +36,23 @@ frontend/src/pages/MaterialPage.tsx
 frontend/src/pages/DraftReviewPage.tsx
 ```
 
-## Task 1: Add Backend Local Image Preview Endpoint
+## Task 1：新增后端本机图片预览接口
 
-**Files:**
-- Create: `src/main/java/com/auto/ecommerce/ecommerceauto/localfile/service/LocalImageFileService.java`
-- Create: `src/main/java/com/auto/ecommerce/ecommerceauto/localfile/controller/LocalFileController.java`
-- Test: `src/test/java/com/auto/ecommerce/ecommerceauto/localfile/service/LocalImageFileServiceTest.java`
+**文件：**
+- 新增：`src/main/java/com/auto/ecommerce/ecommerceauto/localfile/service/LocalImageFileService.java`
+- 新增：`src/main/java/com/auto/ecommerce/ecommerceauto/localfile/controller/LocalFileController.java`
+- 测试：`src/test/java/com/auto/ecommerce/ecommerceauto/localfile/service/LocalImageFileServiceTest.java`
 
-- [ ] **Step 1: Write failing service tests**
+- [ ] **Step 1：先写失败测试**
 
-Create `LocalImageFileServiceTest.java`:
+创建 `LocalImageFileServiceTest.java`，覆盖两类行为：
+
+- `.jpg` 图片可以读取，并返回 `image/jpeg`。
+- `.txt` 等非图片后缀会抛出 `IllegalArgumentException`，错误信息包含 `仅支持 jpg、jpeg、png 图片`。
+
+测试结构：
 
 ```java
-package com.auto.ecommerce.ecommerceauto.localfile.service;
-
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
 class LocalImageFileServiceTest {
 
     @TempDir
@@ -89,1235 +83,508 @@ class LocalImageFileServiceTest {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2：运行测试确认失败**
 
-Run:
+运行：
 
 ```bash
 ./mvnw -Dtest=LocalImageFileServiceTest test
 ```
 
-Expected:
+预期：
 
 ```text
 Compilation failure: package ...localfile.service does not exist
 ```
 
-- [ ] **Step 3: Implement local image service**
+- [ ] **Step 3：实现 `LocalImageFileService`**
 
-Create `LocalImageFileService.java`:
+实现要求：
 
-```java
-package com.auto.ecommerce.ecommerceauto.localfile.service;
+- `readImage(String rawPath)` 接收本机文件路径。
+- 空路径抛出 `图片路径不能为空`。
+- 不存在或不是普通文件时抛出 `图片文件不存在: <path>`。
+- 仅允许 `.jpg`、`.jpeg`、`.png`。
+- 返回 record：`LocalImageFile(String contentType, byte[] bytes)`。
+- `.jpg` 和 `.jpeg` 返回 `image/jpeg`，`.png` 返回 `image/png`。
 
-import org.springframework.stereotype.Service;
+- [ ] **Step 4：实现 `LocalFileController`**
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Locale;
+接口：
 
-@Service
-public class LocalImageFileService {
-
-    public LocalImageFile readImage(String rawPath) {
-        if (rawPath == null || rawPath.isBlank()) {
-            throw new IllegalArgumentException("图片路径不能为空");
-        }
-        Path path = Path.of(rawPath).toAbsolutePath().normalize();
-        if (!Files.isRegularFile(path)) {
-            throw new IllegalArgumentException("图片文件不存在: " + path);
-        }
-        String contentType = contentType(path);
-        try {
-            return new LocalImageFile(contentType, Files.readAllBytes(path));
-        } catch (IOException e) {
-            throw new UncheckedIOException("读取图片失败: " + path, e);
-        }
-    }
-
-    private String contentType(Path path) {
-        String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
-        if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
-            return "image/jpeg";
-        }
-        if (fileName.endsWith(".png")) {
-            return "image/png";
-        }
-        throw new IllegalArgumentException("仅支持 jpg、jpeg、png 图片: " + path);
-    }
-
-    public record LocalImageFile(String contentType, byte[] bytes) {
-    }
-}
+```text
+GET /api/local-files/image?path=<absolutePath>
 ```
 
-- [ ] **Step 4: Implement controller**
+实现要求：
 
-Create `LocalFileController.java`:
+- 调用 `LocalImageFileService.readImage(path)`。
+- 使用 `ResponseEntity<byte[]>` 返回图片字节。
+- 设置 `Content-Type`。
+- 设置 5 分钟本地缓存。
 
-```java
-package com.auto.ecommerce.ecommerceauto.localfile.controller;
+- [ ] **Step 5：运行后端测试**
 
-import com.auto.ecommerce.ecommerceauto.localfile.service.LocalImageFileService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.CacheControl;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
-import java.util.concurrent.TimeUnit;
-
-@RestController
-@RequestMapping("/api/local-files")
-@RequiredArgsConstructor
-public class LocalFileController {
-
-    private final LocalImageFileService service;
-
-    @GetMapping("/image")
-    public ResponseEntity<byte[]> image(@RequestParam String path) {
-        LocalImageFileService.LocalImageFile image = service.readImage(path);
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(image.contentType()))
-                .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES))
-                .body(image.bytes());
-    }
-}
-```
-
-- [ ] **Step 5: Run backend tests**
-
-Run:
+运行：
 
 ```bash
 ./mvnw -Dtest=LocalImageFileServiceTest test
 ./mvnw test
 ```
 
-Expected:
+预期：
 
 ```text
 BUILD SUCCESS
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6：提交**
 
 ```bash
 git add src/main/java/com/auto/ecommerce/ecommerceauto/localfile src/test/java/com/auto/ecommerce/ecommerceauto/localfile
 git commit -m "feat: add local image preview endpoint"
 ```
 
-## Task 2: Scaffold React + Ant Design Frontend
+## Task 2：搭建 React + Ant Design 前端工程
 
-**Files:**
-- Create: `frontend/package.json`
-- Create: `frontend/index.html`
-- Create: `frontend/vite.config.ts`
-- Create: `frontend/tsconfig.json`
-- Create: `frontend/tsconfig.node.json`
-- Create: `frontend/src/main.tsx`
-- Create: `frontend/src/App.tsx`
-- Create: `frontend/src/styles.css`
+**文件：**
+- 新增：`frontend/package.json`
+- 新增：`frontend/index.html`
+- 新增：`frontend/vite.config.ts`
+- 新增：`frontend/tsconfig.json`
+- 新增：`frontend/tsconfig.node.json`
+- 新增：`frontend/src/main.tsx`
+- 新增：`frontend/src/App.tsx`
+- 新增：`frontend/src/styles.css`
 
-- [ ] **Step 1: Create package metadata**
+- [ ] **Step 1：创建 `frontend/package.json`**
 
-Create `frontend/package.json`:
+要求：
+
+- 使用 Vite。
+- 使用 React 18。
+- 使用 Ant Design 5。
+- 脚本包含：
 
 ```json
 {
-  "name": "e-commerce-auto-frontend",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1"
-  },
-  "dependencies": {
-    "@ant-design/icons": "^5.6.1",
-    "antd": "^5.22.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.6.3",
-    "vite": "^6.0.1"
   }
 }
 ```
 
-- [ ] **Step 2: Create Vite and TypeScript config**
+依赖：
 
-Create `frontend/vite.config.ts`:
-
-```ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
-    proxy: {
-      '/api': 'http://localhost:8080',
-    },
-  },
-});
+```text
+@ant-design/icons
+antd
+react
+react-dom
 ```
 
-Create `frontend/tsconfig.json`:
+开发依赖：
 
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["DOM", "DOM.Iterable", "ES2020"],
-    "allowJs": false,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx"
-  },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
-}
+```text
+@types/react
+@types/react-dom
+@vitejs/plugin-react
+typescript
+vite
 ```
 
-Create `frontend/tsconfig.node.json`:
+- [ ] **Step 2：创建 Vite 和 TypeScript 配置**
 
-```json
-{
-  "compilerOptions": {
-    "composite": true,
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "allowSyntheticDefaultImports": true
-  },
-  "include": ["vite.config.ts"]
-}
-```
+`frontend/vite.config.ts` 要求：
 
-- [ ] **Step 3: Create entry files**
+- 使用 `@vitejs/plugin-react`。
+- 开发端口固定为 `5173`。
+- 代理 `/api` 到 `http://localhost:8080`。
 
-Create `frontend/index.html`:
+`frontend/tsconfig.json` 要求：
 
-```html
-<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SOP 上架工作台</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>
-```
+- 开启 `strict`。
+- 使用 `react-jsx`。
+- `include` 指向 `src`。
 
-Create `frontend/src/main.tsx`:
+`frontend/tsconfig.node.json` 要求：
 
-```tsx
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { ConfigProvider } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
-import App from './App';
-import './styles.css';
+- 覆盖 `vite.config.ts`。
+- `module` 使用 `ESNext`。
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <ConfigProvider locale={zhCN}>
-      <App />
-    </ConfigProvider>
-  </React.StrictMode>,
-);
-```
+- [ ] **Step 3：创建入口文件**
 
-Create `frontend/src/App.tsx`:
+`frontend/index.html`：
 
-```tsx
-import { useState } from 'react';
-import AppShell, { AppPageKey } from './components/AppShell';
-import TemplatePage from './pages/TemplatePage';
-import MaterialPage from './pages/MaterialPage';
-import DraftReviewPage from './pages/DraftReviewPage';
-import { ProductMaterialPackage, SopTemplate } from './api/types';
+- 设置 `lang="zh-CN"`。
+- 标题为 `SOP 上架工作台`。
+- 挂载点为 `#root`。
 
-export default function App() {
-  const [page, setPage] = useState<AppPageKey>('templates');
-  const [selectedTemplate, setSelectedTemplate] = useState<SopTemplate | null>(null);
-  const [material, setMaterial] = useState<ProductMaterialPackage | null>(null);
+`frontend/src/main.tsx`：
 
-  return (
-    <AppShell page={page} onPageChange={setPage}>
-      {page === 'templates' && (
-        <TemplatePage
-          selectedTemplate={selectedTemplate}
-          onSelectTemplate={setSelectedTemplate}
-        />
-      )}
-      {page === 'materials' && (
-        <MaterialPage
-          material={material}
-          onMaterialParsed={setMaterial}
-          onReviewDraft={() => setPage('drafts')}
-        />
-      )}
-      {page === 'drafts' && (
-        <DraftReviewPage template={selectedTemplate} material={material} />
-      )}
-    </AppShell>
-  );
-}
-```
+- 使用 `ReactDOM.createRoot`。
+- 使用 Ant Design `ConfigProvider`。
+- locale 使用 `antd/locale/zh_CN`。
+- 引入 `./styles.css`。
 
-- [ ] **Step 4: Add base styles**
+`frontend/src/App.tsx`：
 
-Create `frontend/src/styles.css` with stable shell dimensions and Ant Design-friendly defaults:
+- 保存当前页面：`templates`、`materials`、`drafts`。
+- 保存当前选中的 `SopTemplate`。
+- 保存当前解析出的 `ProductMaterialPackage`。
+- 根据当前页面渲染 `TemplatePage`、`MaterialPage`、`DraftReviewPage`。
 
-```css
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-}
+- [ ] **Step 4：创建基础样式**
 
-body {
-  background: #f5f7fb;
-  color: #1f2937;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
+`frontend/src/styles.css` 要求：
 
-.app-shell {
-  min-height: 100%;
-}
+- `html`、`body`、`#root` 高度为 100%。
+- 页面背景使用浅灰工作台风格。
+- `.app-shell`、`.app-header`、`.app-content` 固定布局。
+- `.image-grid` 使用自适应网格展示图片。
+- `.image-preview img` 使用 1:1 比例和 `object-fit: cover`。
 
-.app-logo {
-  height: 56px;
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  color: #ffffff;
-  font-size: 16px;
-  font-weight: 700;
-}
+- [ ] **Step 5：安装前端依赖**
 
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.app-content {
-  padding: 20px;
-}
-
-.page-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
-}
-
-.image-preview {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-  background: #ffffff;
-}
-
-.image-preview img {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  display: block;
-}
-
-.image-preview-caption {
-  padding: 8px;
-  font-size: 12px;
-  color: #4b5563;
-  word-break: break-all;
-}
-```
-
-- [ ] **Step 5: Install dependencies**
-
-Run from `frontend/`:
+运行：
 
 ```bash
+cd frontend
 npm install
 ```
 
-Expected:
+预期：
 
 ```text
 added ... packages
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6：提交**
 
 ```bash
 git add frontend/package.json frontend/package-lock.json frontend/index.html frontend/vite.config.ts frontend/tsconfig.json frontend/tsconfig.node.json frontend/src/main.tsx frontend/src/App.tsx frontend/src/styles.css
 git commit -m "feat: scaffold react workbench"
 ```
 
-## Task 3: Add API Types and Client
+## Task 3：新增前端 API 类型和请求封装
 
-**Files:**
-- Create: `frontend/src/api/types.ts`
-- Create: `frontend/src/api/client.ts`
+**文件：**
+- 新增：`frontend/src/api/types.ts`
+- 新增：`frontend/src/api/client.ts`
 
-- [ ] **Step 1: Create shared API types**
+- [ ] **Step 1：创建 API 类型**
 
-Create `frontend/src/api/types.ts`:
+`frontend/src/api/types.ts` 需要定义：
 
-```ts
-export interface SopTemplate {
-  id?: number;
-  templateId: string;
-  name: string;
-  titlePrompt: string;
-  mainImagePrompt: string;
-  createTime?: string;
-  updateTime?: string;
-}
-
-export interface MaterialTransactionRow {
-  color: string;
-  specification: string;
-  stockingMode: string;
-  skc: string;
-  sku: string;
-  price: number;
-  stock: number;
-  length: number;
-  width: number;
-  height: number;
-  weightGram: number;
-}
-
-export interface ProductMaterialPackage {
-  materialPackagePath?: string;
-  productName: string;
-  sourceUrl: string;
-  shopName: string;
-  categoryName: string;
-  brand: string;
-  categoryAttributes: Record<string, string>;
-  variantAttributes: Record<string, string>;
-  sizeChartImageName?: string;
-  sizeChartImagePath?: string;
-  transactionRows: MaterialTransactionRow[];
-  mainImageSourcePaths: string[];
-  detailImagePaths: string[];
-}
-
-export interface ListingDraftPreview {
-  shopName: string;
-  categoryName: string;
-  sourceUrl: string;
-  chineseTitle: string;
-  englishTitle: string;
-  brand: string;
-  productMainImage?: string;
-  productSizeChartImage?: string;
-  descriptionImagePaths: string[];
-  categoryAttributes: Record<string, string>;
-  variantAttributes: Record<string, string[]>;
-  transactionInfo: MaterialTransactionRow[];
-}
+```text
+SopTemplate
+MaterialTransactionRow
+ProductMaterialPackage
+ListingDraftPreview
 ```
 
-- [ ] **Step 2: Create API client**
+字段要求：
 
-Create `frontend/src/api/client.ts`:
+- `SopTemplate` 对应后端模板实体：`templateId`、`name`、`titlePrompt`、`mainImagePrompt`、`createTime`、`updateTime`。
+- `ProductMaterialPackage` 对应后端素材解析结果：产品信息、分类属性、变种属性、主图路径、副图路径、尺码表路径、交易行。
+- `ListingDraftPreview` 是前端本地草稿壳：基础信息、标题、图片、属性、交易信息。
+
+- [ ] **Step 2：创建 API client**
+
+`frontend/src/api/client.ts` 需要提供：
 
 ```ts
-import { ProductMaterialPackage, SopTemplate } from './types';
-
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
-    ...init,
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `请求失败: ${response.status}`);
-  }
-
-  return response.json() as Promise<T>;
-}
-
-export function listTemplates() {
-  return request<SopTemplate[]>('/api/sop-templates');
-}
-
-export function createTemplate(template: SopTemplate) {
-  return request<SopTemplate>('/api/sop-templates', {
-    method: 'POST',
-    body: JSON.stringify(template),
-  });
-}
-
-export function updateTemplate(templateId: string, template: Omit<SopTemplate, 'templateId'>) {
-  return request<SopTemplate>(`/api/sop-templates/${encodeURIComponent(templateId)}`, {
-    method: 'PUT',
-    body: JSON.stringify(template),
-  });
-}
-
-export function parseMaterialPackage(materialPackagePath: string) {
-  return request<ProductMaterialPackage>('/api/material-packages/parse', {
-    method: 'POST',
-    body: JSON.stringify({ materialPackagePath }),
-  });
-}
-
-export function localImageUrl(path: string) {
-  return `/api/local-files/image?path=${encodeURIComponent(path)}`;
-}
+listTemplates(): Promise<SopTemplate[]>
+createTemplate(template: SopTemplate): Promise<SopTemplate>
+updateTemplate(templateId: string, template: Omit<SopTemplate, 'templateId'>): Promise<SopTemplate>
+parseMaterialPackage(materialPackagePath: string): Promise<ProductMaterialPackage>
+localImageUrl(path: string): string
 ```
 
-- [ ] **Step 3: Run TypeScript build**
+请求规则：
 
-Run:
+- 使用原生 `fetch`。
+- 默认发送 `Content-Type: application/json`。
+- 非 2xx 响应读取 body 文本并抛出 `Error`。
+- `localImageUrl` 返回 `/api/local-files/image?path=<encodedPath>`。
+
+- [ ] **Step 3：运行构建确认当前缺组件失败**
+
+运行：
 
 ```bash
 cd frontend
 npm run build
 ```
 
-Expected:
+预期：
 
 ```text
-error TS2307: Cannot find module './components/AppShell'
+Cannot find module './components/AppShell'
 ```
 
-The expected failure happens because `App.tsx` already references pages/components created in later tasks.
+这个失败是预期的，因为页面组件会在后续任务创建。
 
-## Task 4: Build App Shell and Template Management
+## Task 4：实现应用外壳和模板管理页
 
-**Files:**
-- Create: `frontend/src/components/AppShell.tsx`
-- Create: `frontend/src/pages/TemplatePage.tsx`
+**文件：**
+- 新增：`frontend/src/components/AppShell.tsx`
+- 新增：`frontend/src/pages/TemplatePage.tsx`
 
-- [ ] **Step 1: Implement AppShell**
+- [ ] **Step 1：实现 `AppShell`**
 
-Create `frontend/src/components/AppShell.tsx`:
+要求：
 
-```tsx
-import {
-  AppstoreOutlined,
-  DatabaseOutlined,
-  FileTextOutlined,
-} from '@ant-design/icons';
-import { Layout, Menu, Tag, Typography } from 'antd';
-import { ReactNode } from 'react';
+- 使用 Ant Design `Layout`。
+- 左侧 `Sider` 宽度为 220。
+- 菜单项：
+  - 模板管理
+  - 素材解析
+  - 草稿审核
+- 顶部 `Header` 展示当前页面标题。
+- 右侧显示 `本机工作台` 标签。
+- 导出类型：`AppPageKey = 'templates' | 'materials' | 'drafts'`。
 
-const { Sider, Header, Content } = Layout;
+- [ ] **Step 2：实现 `TemplatePage`**
 
-export type AppPageKey = 'templates' | 'materials' | 'drafts';
+要求：
 
-interface AppShellProps {
-  page: AppPageKey;
-  onPageChange: (page: AppPageKey) => void;
-  children: ReactNode;
-}
+- 进入页面时调用 `listTemplates()`。
+- 表格字段：模板 ID、名称、更新时间、操作。
+- 操作包含：选择、编辑。
+- 新增模板按钮打开抽屉。
+- 编辑模板也使用抽屉。
+- 表单字段：
+  - `templateId`
+  - `name`
+  - `titlePrompt`
+  - `mainImagePrompt`
+- 新增调用 `createTemplate()`。
+- 编辑调用 `updateTemplate()`。
+- 保存成功后刷新列表，并更新当前选中模板。
 
-const titles: Record<AppPageKey, string> = {
-  templates: '模板管理',
-  materials: '素材解析',
-  drafts: '草稿审核',
-};
+- [ ] **Step 3：运行构建确认下一缺口**
 
-export default function AppShell({ page, onPageChange, children }: AppShellProps) {
-  return (
-    <Layout className="app-shell">
-      <Sider width={220}>
-        <div className="app-logo">SOP 上架工作台</div>
-        <Menu
-          theme="dark"
-          mode="inline"
-          selectedKeys={[page]}
-          onClick={(item) => onPageChange(item.key as AppPageKey)}
-          items={[
-            { key: 'templates', icon: <FileTextOutlined />, label: '模板管理' },
-            { key: 'materials', icon: <DatabaseOutlined />, label: '素材解析' },
-            { key: 'drafts', icon: <AppstoreOutlined />, label: '草稿审核' },
-          ]}
-        />
-      </Sider>
-      <Layout>
-        <Header className="app-header">
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            {titles[page]}
-          </Typography.Title>
-          <Tag color="blue">本机工作台</Tag>
-        </Header>
-        <Content className="app-content">{children}</Content>
-      </Layout>
-    </Layout>
-  );
-}
-```
-
-- [ ] **Step 2: Implement TemplatePage**
-
-Create `frontend/src/pages/TemplatePage.tsx` with list, drawer edit form, create/update calls:
-
-```tsx
-import { Button, Drawer, Form, Input, Space, Table, Typography, message } from 'antd';
-import { ColumnsType } from 'antd/es/table';
-import { useEffect, useState } from 'react';
-import { createTemplate, listTemplates, updateTemplate } from '../api/client';
-import { SopTemplate } from '../api/types';
-
-interface TemplatePageProps {
-  selectedTemplate: SopTemplate | null;
-  onSelectTemplate: (template: SopTemplate) => void;
-}
-
-export default function TemplatePage({ selectedTemplate, onSelectTemplate }: TemplatePageProps) {
-  const [templates, setTemplates] = useState<SopTemplate[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<SopTemplate | null>(null);
-  const [form] = Form.useForm<SopTemplate>();
-
-  async function loadTemplates() {
-    setLoading(true);
-    try {
-      setTemplates(await listTemplates());
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '模板加载失败');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadTemplates();
-  }, []);
-
-  function openCreate() {
-    setEditing(null);
-    form.resetFields();
-    setDrawerOpen(true);
-  }
-
-  function openEdit(template: SopTemplate) {
-    setEditing(template);
-    form.setFieldsValue(template);
-    setDrawerOpen(true);
-  }
-
-  async function saveTemplate() {
-    const values = await form.validateFields();
-    try {
-      const saved = editing
-        ? await updateTemplate(editing.templateId, values)
-        : await createTemplate(values);
-      message.success('模板已保存');
-      onSelectTemplate(saved);
-      setDrawerOpen(false);
-      await loadTemplates();
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '模板保存失败');
-    }
-  }
-
-  const columns: ColumnsType<SopTemplate> = [
-    { title: '模板 ID', dataIndex: 'templateId', width: 230 },
-    { title: '名称', dataIndex: 'name' },
-    { title: '更新时间', dataIndex: 'updateTime', width: 190 },
-    {
-      title: '操作',
-      width: 190,
-      render: (_, record) => (
-        <Space>
-          <Button type="link" onClick={() => onSelectTemplate(record)}>
-            选择
-          </Button>
-          <Button type="link" onClick={() => openEdit(record)}>
-            编辑
-          </Button>
-        </Space>
-      ),
-    },
-  ];
-
-  return (
-    <div className="page-grid">
-      <Space align="center" style={{ justifyContent: 'space-between' }}>
-        <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            SOP 模板
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            当前选择：{selectedTemplate?.name || '未选择'}
-          </Typography.Text>
-        </div>
-        <Button type="primary" onClick={openCreate}>
-          新增模板
-        </Button>
-      </Space>
-
-      <Table
-        rowKey="templateId"
-        loading={loading}
-        columns={columns}
-        dataSource={templates}
-        pagination={false}
-      />
-
-      <Drawer
-        width={620}
-        title={editing ? '编辑模板' : '新增模板'}
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        extra={
-          <Button type="primary" onClick={saveTemplate}>
-            保存
-          </Button>
-        }
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item name="templateId" label="模板 ID" rules={[{ required: true }]}>
-            <Input disabled={Boolean(editing)} />
-          </Form.Item>
-          <Form.Item name="name" label="模板名称" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="titlePrompt" label="标题提示词" rules={[{ required: true }]}>
-            <Input.TextArea rows={8} />
-          </Form.Item>
-          <Form.Item name="mainImagePrompt" label="主图提示词" rules={[{ required: true }]}>
-            <Input.TextArea rows={8} />
-          </Form.Item>
-        </Form>
-      </Drawer>
-    </div>
-  );
-}
-```
-
-- [ ] **Step 3: Run build**
-
-Run:
+运行：
 
 ```bash
 cd frontend
 npm run build
 ```
 
-Expected:
+预期：
 
 ```text
-error TS2307: Cannot find module './pages/MaterialPage'
+Cannot find module './pages/MaterialPage'
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4：提交**
 
 ```bash
 git add frontend/src/components/AppShell.tsx frontend/src/pages/TemplatePage.tsx frontend/src/App.tsx
 git commit -m "feat: add template workbench page"
 ```
 
-## Task 5: Build Material Parsing Page and Image Preview
+## Task 5：实现素材解析页和图片预览组件
 
-**Files:**
-- Create: `frontend/src/components/ImagePathPreview.tsx`
-- Create: `frontend/src/pages/MaterialPage.tsx`
+**文件：**
+- 新增：`frontend/src/components/ImagePathPreview.tsx`
+- 新增：`frontend/src/pages/MaterialPage.tsx`
 
-- [ ] **Step 1: Implement ImagePathPreview**
+- [ ] **Step 1：实现 `ImagePathPreview`**
 
-Create `frontend/src/components/ImagePathPreview.tsx`:
+要求：
 
-```tsx
-import { FileImageOutlined } from '@ant-design/icons';
-import { Empty } from 'antd';
-import { localImageUrl } from '../api/client';
+- 入参：`paths: string[]`、`emptyText?: string`。
+- 无图片时显示 Ant Design `Empty`。
+- 有图片时使用 `.image-grid` 展示。
+- 图片 `src` 使用 `localImageUrl(path)`。
+- caption 显示文件名。
+- 图片加载失败不阻塞页面。
 
-interface ImagePathPreviewProps {
-  paths: string[];
-  emptyText?: string;
-}
+- [ ] **Step 2：实现 `MaterialPage`**
 
-function fileName(path: string) {
-  return path.split('/').pop() || path;
-}
+要求：
 
-export default function ImagePathPreview({ paths, emptyText = '暂无图片' }: ImagePathPreviewProps) {
-  if (!paths.length) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />;
-  }
+- 顶部表单输入素材包绝对路径。
+- 点击 `解析素材包` 调用 `parseMaterialPackage()`。
+- 解析成功后调用 `onMaterialParsed(parsed)`。
+- 解析失败使用 `message.error()` 展示后端错误。
+- 有素材结果时展示：
+  - 产品信息 `Descriptions`
+  - 主图来源图片
+  - 副图 / 描述图
+  - 尺码表
+  - 分类属性
+  - 变种属性
+  - 交易信息表格
+- 有素材结果时启用 `进入草稿审核` 按钮。
 
-  return (
-    <div className="image-grid">
-      {paths.map((path) => (
-        <div className="image-preview" key={path}>
-          <img src={localImageUrl(path)} alt={fileName(path)} />
-          <div className="image-preview-caption">
-            <FileImageOutlined /> {fileName(path)}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-```
+- [ ] **Step 3：运行构建确认下一缺口**
 
-- [ ] **Step 2: Implement MaterialPage**
-
-Create `frontend/src/pages/MaterialPage.tsx`:
-
-```tsx
-import { Button, Card, Descriptions, Form, Input, Space, Table, Tabs, Typography, message } from 'antd';
-import { useState } from 'react';
-import { parseMaterialPackage } from '../api/client';
-import { MaterialTransactionRow, ProductMaterialPackage } from '../api/types';
-import ImagePathPreview from '../components/ImagePathPreview';
-
-interface MaterialPageProps {
-  material: ProductMaterialPackage | null;
-  onMaterialParsed: (material: ProductMaterialPackage) => void;
-  onReviewDraft: () => void;
-}
-
-export default function MaterialPage({ material, onMaterialParsed, onReviewDraft }: MaterialPageProps) {
-  const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm<{ materialPackagePath: string }>();
-
-  async function parse() {
-    const values = await form.validateFields();
-    setLoading(true);
-    try {
-      const parsed = await parseMaterialPackage(values.materialPackagePath);
-      onMaterialParsed(parsed);
-      message.success('素材包解析完成');
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '素材包解析失败');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const transactionColumns = [
-    { title: '颜色', dataIndex: 'color' },
-    { title: '规格', dataIndex: 'specification' },
-    { title: 'SKU', dataIndex: 'sku' },
-    { title: '价格', dataIndex: 'price' },
-    { title: '库存', dataIndex: 'stock' },
-    { title: '尺寸', render: (_: unknown, row: MaterialTransactionRow) => `${row.length} × ${row.width} × ${row.height}` },
-    { title: '重量g', dataIndex: 'weightGram' },
-  ];
-
-  return (
-    <div className="page-grid">
-      <Card>
-        <Form form={form} layout="inline">
-          <Form.Item
-            name="materialPackagePath"
-            label="素材包路径"
-            rules={[{ required: true, message: '请输入素材包绝对路径' }]}
-            style={{ flex: 1 }}
-          >
-            <Input placeholder="/Users/xiaobo/Downloads/素材/商品名称" />
-          </Form.Item>
-          <Button type="primary" loading={loading} onClick={parse}>
-            解析素材包
-          </Button>
-          <Button disabled={!material} onClick={onReviewDraft}>
-            进入草稿审核
-          </Button>
-        </Form>
-      </Card>
-
-      {material && (
-        <>
-          <Card title="产品信息">
-            <Descriptions column={3} bordered size="small">
-              <Descriptions.Item label="产品名称">{material.productName}</Descriptions.Item>
-              <Descriptions.Item label="店铺">{material.shopName}</Descriptions.Item>
-              <Descriptions.Item label="类目">{material.categoryName}</Descriptions.Item>
-              <Descriptions.Item label="品牌">{material.brand}</Descriptions.Item>
-              <Descriptions.Item label="来源 URL" span={2}>{material.sourceUrl || '-'}</Descriptions.Item>
-            </Descriptions>
-          </Card>
-
-          <Tabs
-            items={[
-              {
-                key: 'images',
-                label: '图片',
-                children: (
-                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                    <Card title="主图来源"><ImagePathPreview paths={material.mainImageSourcePaths} /></Card>
-                    <Card title="副图 / 描述图"><ImagePathPreview paths={material.detailImagePaths} /></Card>
-                    <Card title="尺码表"><ImagePathPreview paths={material.sizeChartImagePath ? [material.sizeChartImagePath] : []} /></Card>
-                  </Space>
-                ),
-              },
-              {
-                key: 'attributes',
-                label: '属性',
-                children: (
-                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
-                    <Card title="分类属性">
-                      <Descriptions column={2} bordered size="small">
-                        {Object.entries(material.categoryAttributes).map(([key, value]) => (
-                          <Descriptions.Item label={key} key={key}>{value}</Descriptions.Item>
-                        ))}
-                      </Descriptions>
-                    </Card>
-                    <Card title="变种属性">
-                      <Descriptions column={2} bordered size="small">
-                        {Object.entries(material.variantAttributes).map(([key, value]) => (
-                          <Descriptions.Item label={key} key={key}>{value}</Descriptions.Item>
-                        ))}
-                      </Descriptions>
-                    </Card>
-                  </Space>
-                ),
-              },
-              {
-                key: 'transactions',
-                label: '交易信息',
-                children: (
-                  <Card>
-                    <Table
-                      rowKey="sku"
-                      columns={transactionColumns}
-                      dataSource={material.transactionRows}
-                      pagination={false}
-                      size="small"
-                    />
-                  </Card>
-                ),
-              },
-            ]}
-          />
-        </>
-      )}
-
-      {!material && (
-        <Card>
-          <Typography.Text type="secondary">输入素材包路径后，解析结果会显示在这里。</Typography.Text>
-        </Card>
-      )}
-    </div>
-  );
-}
-```
-
-- [ ] **Step 3: Run build**
-
-Run:
+运行：
 
 ```bash
 cd frontend
 npm run build
 ```
 
-Expected:
+预期：
 
 ```text
-error TS2307: Cannot find module './pages/DraftReviewPage'
+Cannot find module './pages/DraftReviewPage'
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4：提交**
 
 ```bash
 git add frontend/src/components/ImagePathPreview.tsx frontend/src/pages/MaterialPage.tsx frontend/src/api
 git commit -m "feat: add material parsing page"
 ```
 
-## Task 6: Build Draft Review Page
+## Task 6：实现草稿审核页
 
-**Files:**
-- Create: `frontend/src/pages/DraftReviewPage.tsx`
+**文件：**
+- 新增：`frontend/src/pages/DraftReviewPage.tsx`
 
-- [ ] **Step 1: Implement DraftReviewPage**
+- [ ] **Step 1：实现 `DraftReviewPage`**
 
-Create `frontend/src/pages/DraftReviewPage.tsx`:
+要求：
 
-```tsx
-import { Alert, Card, Descriptions, Empty, Form, Input, Space, Table, Typography } from 'antd';
-import { useMemo } from 'react';
-import { ListingDraftPreview, ProductMaterialPackage, SopTemplate } from '../api/types';
-import ImagePathPreview from '../components/ImagePathPreview';
+- 入参：
+  - `template: SopTemplate | null`
+  - `material: ProductMaterialPackage | null`
+- 没有素材解析结果时显示空状态。
+- 有素材时构造本地 `ListingDraftPreview`：
+  - `shopName` 使用素材店铺。
+  - `categoryName` 使用素材类目。
+  - `sourceUrl` 使用素材来源 URL。
+  - `chineseTitle` 使用 `productName`。
+  - `englishTitle` 留空。
+  - `brand` 使用素材品牌。
+  - `productMainImage` 使用第一张主图。
+  - `productSizeChartImage` 使用尺码表路径。
+  - `descriptionImagePaths` 使用全部副图。
+  - `categoryAttributes` 原样带入。
+  - `variantAttributes` 将字符串按英文逗号拆成数组。
+  - `transactionInfo` 使用素材交易行。
+- 校验并显示：
+  - 缺少中文标题
+  - 缺少产品主图
+  - 缺少描述图
+  - 缺少交易信息
+- 展示模板快照、基础信息表单、图片审核区、交易信息表格。
 
-interface DraftReviewPageProps {
-  template: SopTemplate | null;
-  material: ProductMaterialPackage | null;
-}
+- [ ] **Step 2：运行前端构建**
 
-function toArrayVariantAttributes(attributes: Record<string, string>) {
-  return Object.fromEntries(
-    Object.entries(attributes).map(([key, value]) => [key, value.split(',').map((item) => item.trim()).filter(Boolean)]),
-  );
-}
-
-function createDraft(material: ProductMaterialPackage): ListingDraftPreview {
-  return {
-    shopName: material.shopName,
-    categoryName: material.categoryName,
-    sourceUrl: material.sourceUrl,
-    chineseTitle: material.productName,
-    englishTitle: '',
-    brand: material.brand,
-    productMainImage: material.mainImageSourcePaths[0],
-    productSizeChartImage: material.sizeChartImagePath,
-    descriptionImagePaths: material.detailImagePaths,
-    categoryAttributes: material.categoryAttributes,
-    variantAttributes: toArrayVariantAttributes(material.variantAttributes),
-    transactionInfo: material.transactionRows,
-  };
-}
-
-function validateDraft(draft: ListingDraftPreview | null) {
-  const errors: string[] = [];
-  if (!draft) {
-    return ['缺少素材解析结果'];
-  }
-  if (!draft.chineseTitle) errors.push('缺少中文标题');
-  if (!draft.productMainImage) errors.push('缺少产品主图');
-  if (!draft.descriptionImagePaths.length) errors.push('缺少描述图');
-  if (!draft.transactionInfo.length) errors.push('缺少交易信息');
-  return errors;
-}
-
-export default function DraftReviewPage({ template, material }: DraftReviewPageProps) {
-  const draft = useMemo(() => (material ? createDraft(material) : null), [material]);
-  const errors = validateDraft(draft);
-
-  if (!material || !draft) {
-    return <Empty description="请先在素材解析页解析一个素材包" />;
-  }
-
-  return (
-    <div className="page-grid">
-      <Alert
-        type={errors.length ? 'warning' : 'success'}
-        showIcon
-        message={errors.length ? '草稿还需要补充信息' : '草稿基础信息完整'}
-        description={errors.length ? errors.join('；') : '后续接入 CodexExec 后，这里会展示 AI 生成的标题和主图。'}
-      />
-
-      <Card title="模板快照">
-        {template ? (
-          <Descriptions column={2} bordered size="small">
-            <Descriptions.Item label="模板 ID">{template.templateId}</Descriptions.Item>
-            <Descriptions.Item label="模板名称">{template.name}</Descriptions.Item>
-            <Descriptions.Item label="标题提示词" span={2}>{template.titlePrompt}</Descriptions.Item>
-            <Descriptions.Item label="主图提示词" span={2}>{template.mainImagePrompt}</Descriptions.Item>
-          </Descriptions>
-        ) : (
-          <Typography.Text type="secondary">未选择模板，仍可预览素材草稿。</Typography.Text>
-        )}
-      </Card>
-
-      <Card title="基础信息">
-        <Form layout="vertical" initialValues={draft}>
-          <Space style={{ width: '100%' }} size="large" align="start">
-            <Form.Item name="shopName" label="店铺" style={{ flex: 1 }}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="categoryName" label="类目" style={{ flex: 1 }}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="brand" label="品牌" style={{ flex: 1 }}>
-              <Input />
-            </Form.Item>
-          </Space>
-          <Form.Item name="sourceUrl" label="来源 URL">
-            <Input />
-          </Form.Item>
-          <Form.Item name="chineseTitle" label="中文标题">
-            <Input />
-          </Form.Item>
-          <Form.Item name="englishTitle" label="英文标题">
-            <Input placeholder="后续由 CodexExec 生成" />
-          </Form.Item>
-        </Form>
-      </Card>
-
-      <Card title="图片审核">
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <div>
-            <Typography.Title level={5}>产品主图</Typography.Title>
-            <ImagePathPreview paths={draft.productMainImage ? [draft.productMainImage] : []} />
-          </div>
-          <div>
-            <Typography.Title level={5}>尺码表</Typography.Title>
-            <ImagePathPreview paths={draft.productSizeChartImage ? [draft.productSizeChartImage] : []} />
-          </div>
-          <div>
-            <Typography.Title level={5}>描述图</Typography.Title>
-            <ImagePathPreview paths={draft.descriptionImagePaths} />
-          </div>
-        </Space>
-      </Card>
-
-      <Card title="交易信息">
-        <Table
-          rowKey="sku"
-          dataSource={draft.transactionInfo}
-          pagination={false}
-          size="small"
-          columns={[
-            { title: '颜色', dataIndex: 'color' },
-            { title: '规格', dataIndex: 'specification' },
-            { title: 'SKU', dataIndex: 'sku' },
-            { title: '价格', dataIndex: 'price' },
-            { title: '库存', dataIndex: 'stock' },
-            { title: '重量g', dataIndex: 'weightGram' },
-          ]}
-        />
-      </Card>
-    </div>
-  );
-}
-```
-
-- [ ] **Step 2: Run build**
-
-Run:
+运行：
 
 ```bash
 cd frontend
 npm run build
 ```
 
-Expected:
+预期：
 
 ```text
 ✓ built in ...
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3：提交**
 
 ```bash
 git add frontend/src/pages/DraftReviewPage.tsx
 git commit -m "feat: add draft review page"
 ```
 
-## Task 7: Final Verification and Dev Server
+## Task 7：最终验证和本地启动
 
-**Files:**
-- Modify only if verification finds issues.
+**文件：**
+- 只有验证发现问题时才修改相关文件。
 
-- [ ] **Step 1: Run backend tests**
+- [ ] **Step 1：运行后端测试**
 
-Run:
+运行：
 
 ```bash
 ./mvnw test
 ```
 
-Expected:
+预期：
 
 ```text
 BUILD SUCCESS
 ```
 
-- [ ] **Step 2: Run frontend build**
+- [ ] **Step 2：运行前端构建**
 
-Run:
+运行：
 
 ```bash
 cd frontend
 npm run build
 ```
 
-Expected:
+预期：
 
 ```text
 ✓ built in ...
 ```
 
-- [ ] **Step 3: Start backend**
+- [ ] **Step 3：启动后端**
 
-Run:
+运行：
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Expected:
+预期：
 
 ```text
 Started ECommerceAutoApplication
 ```
 
-- [ ] **Step 4: Start frontend**
+- [ ] **Step 4：启动前端**
 
-Run:
+运行：
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Expected:
+预期：
 
 ```text
 Local: http://127.0.0.1:5173/
 ```
 
-- [ ] **Step 5: Browser smoke test**
+- [ ] **Step 5：浏览器冒烟验证**
 
-Open:
+打开：
 
 ```text
 http://127.0.0.1:5173/
 ```
 
-Check:
+检查：
 
-- 模板管理页显示空表或真实模板列表。
-- 素材解析页可以提交路径并展示错误或解析结果。
-- 草稿审核页在无素材时显示空状态，在解析素材后显示草稿壳。
+- 模板管理页可以看到空表或真实模板列表。
+- 新增/编辑模板表单可以打开。
+- 素材解析页可以提交路径，并展示错误或解析结果。
+- 图片预览区域不会破坏页面布局。
+- 草稿审核页无素材时显示空状态，有素材后显示草稿壳。
 
-- [ ] **Step 6: Commit verification fixes if any**
+- [ ] **Step 6：提交验证修复**
 
-If verification required fixes:
+如果验证时做了修复：
 
 ```bash
 git add <changed-files>
 git commit -m "fix: polish frontend workbench verification"
 ```
 
-If no fixes were required, do not create an empty commit.
+如果没有修复，不创建空提交。
