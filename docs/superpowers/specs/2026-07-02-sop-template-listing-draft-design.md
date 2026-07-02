@@ -568,6 +568,38 @@ POST /api/listing-drafts/{draftId}/publish
 
 ## 前端页面流程
 
+第一版前端使用 React + Ant Design，放在项目根目录的 `frontend/` 下独立开发：
+
+```text
+e-commerce-auto/
+  frontend/
+    package.json
+    vite.config.ts
+    src/
+      main.tsx
+      App.tsx
+      api/
+      views/
+      components/
+```
+
+开发时前后端分开运行：
+
+```text
+后端 Spring Boot: http://localhost:8080
+前端 Vite: http://localhost:5173
+```
+
+Vite 开发代理将 `/api` 转发到后端：
+
+```ts
+server: {
+  proxy: {
+    '/api': 'http://localhost:8080'
+  }
+}
+```
+
 第一版页面：
 
 ```text
@@ -596,6 +628,7 @@ POST /api/listing-drafts/{draftId}/publish
 ```
 
 页面应偏操作台风格，信息密度适中，优先服务运营反复使用，不做营销页。
+Ant Design 主要用于表单、表格、弹窗、图片预览、步骤状态、消息提示和可编辑交易信息表格。
 
 ## 校验与错误处理
 
@@ -681,7 +714,7 @@ publish_screenshot_path
 7. 实现 `CodexExecListingAiGenerator`。
 8. 实现草稿生成接口。
 9. 实现调用 `MabangPublisher.publish` 的发布接口。
-10. 实现模板管理、草稿生成、草稿审核前端页面。
+10. 在 `frontend/` 中使用 React + Ant Design 实现模板管理、草稿生成、草稿审核前端页面。
 
 ## 已确认决策
 
@@ -693,5 +726,6 @@ publish_screenshot_path
 - 主图生成能力先做抽象，第一版只生成提示词和任务数据，审核前必须有最终主图路径。
 - 第一版使用 MySQL。
 - Mapper 和基础 CRUD 使用 MyBatis-Plus。
+- 前端使用 React + Ant Design，独立放在项目根目录 `frontend/`。
 - 草稿主体以 JSON 形式存入 MySQL，避免第一版过度拆表。
 - 现有 `MabangPublisher.publish` 保持最终执行器定位。
