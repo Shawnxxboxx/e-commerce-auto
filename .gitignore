@@ -7,6 +7,9 @@ target/
 node_modules/
 screenshots/
 .reasonix/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 ### STS ###
 .apt_generated
