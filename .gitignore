@@ -3,6 +3,10 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+.DS_Store
+node_modules/
+screenshots/
+.reasonix/
 
 ### STS ###
 .apt_generated
@@ -31,3 +35,4 @@ build/
 
 ### VS Code ###
 .vscode/
+/src/main/resources/templates/素材/

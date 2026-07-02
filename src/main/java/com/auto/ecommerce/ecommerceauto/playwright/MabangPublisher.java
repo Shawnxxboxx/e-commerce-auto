@@ -1,0 +1,1067 @@
+package com.auto.ecommerce.ecommerceauto.playwright;
+
+import com.microsoft.playwright.*;
+import com.microsoft.playwright.options.AriaRole;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+import java.io.File;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+/**
+ * 马帮 ERP — TikTok 全托管刊登自动化服务。
+ * <p>
+ * 处理 iframe 切换、表单填充、文件上传等操作。
+ * 页面结构：外层框架 → iframe#iframeContent → Vue SPA 表单
+ */
+@Slf4j
+@RequiredArgsConstructor
+@Service
+public class MabangPublisher {
+
+    private final PlaywrightProperties properties;
+
+    private Playwright playwright;
+    private Browser browser;
+
+    /** 是否拥有浏览器所有权（共享模式不负责关闭） */
+    private boolean ownsBrowser = false;
+
+    /** iframe 选择器 */
+    private static final String IFRAME_SELECTOR = "#iframeContent";
+
+    /** 素材图片资源目录（相对于项目根目录） */
+    private static final String RESOURCE_IMAGE_DIR = "src/main/resources/templates/素材/";
+
+    // ========== 生命周期 ==========
+
+    /**
+     * 手动初始化（与全局 Playwright 共用浏览器实例时调用）
+     */
+    public void initWithBrowser(Browser browser) {
+        this.playwright = null;
+        this.browser = browser;
+        this.ownsBrowser = false;
+        log.info("MabangPublisher 已附加到已有浏览器实例");
+    }
+
+    /**
+     * 独立初始化（单独启动浏览器）
+     */
+    public void initStandalone() {
+        if (browser != null) return;
+        log.info("正在启动 Playwright 独立实例...");
+        playwright = Playwright.create();
+        BrowserType.LaunchOptions options = new BrowserType.LaunchOptions()
+                .setHeadless(false)
+                .setChannel("chrome");
+        browser = playwright.chromium().launch(options);
+        this.ownsBrowser = true;
+        log.info("Playwright 浏览器已启动");
+    }
+
+    /**
+     * 释放资源（仅 ownsBrowser=true 时关闭浏览器）
+     */
+    public void destroy() {
+        if (ownsBrowser) {
+            if (browser != null) {
+                browser.close();
+                log.info("浏览器已关闭");
+            }
+            if (playwright != null) {
+                playwright.close();
+                log.info("Playwright 已关闭");
+            }
+        } else {
+            log.info("共享模式，跳过浏览器关闭");
+        }
+    }
+
+    // ========== 刊登流程 ==========
+
+    /**
+     * 执行 TikTok 全托管刊登
+     *
+     * @param request 刊登参数
+     * @return 刊登结果
+     */
+    public PublishResult publish(TikTokPublishRequest request) {
+        long startTime = System.currentTimeMillis();
+
+        if (browser == null) {
+            return PublishResult.failure("浏览器未初始化，请先调用 initWithBrowser()", 0, null);
+        }
+
+        try {
+            BrowserContext context = browser.contexts().get(0);
+
+            // 在已有标签页中查找马帮页面
+            Page page = null;
+            for (Page p : context.pages()) {
+                if (p.url().contains("mabangerp.com")) {
+                    page = p;
+                    log.info("成功接管当前 Chrome 中的马帮页面: {}", p.url());
+                    break;
+                }
+            }
+
+            if (page == null) {
+                log.info("未在当前 Chrome 中检测到马帮页面，正在新建标签页...");
+                page = context.newPage();
+                String targetUrl = request.getUrl() != null ? request.getUrl() :
+                        "https://www.mabangerp.com/index.php?mod=main.goPublish&url=aHR0cHM6Ly9wdWJsaXNoLm1hYmFuZ2VycC5jb20vcHVibGlzaC11aS8jL3Rpa3Rva0Z1bGxTZXJ2aWNlRGV0YWlsP2NLZXk9TUFCQU5HX0VSUF9QUklWQVRFX0xPR0lOXzQxNDU3Ml83MzU2MzFfUFVCTElTSA==";
+                navigateWithRetry(page, targetUrl);
+            }
+
+            // 定位 iframe
+            FrameLocator formFrame = page.frameLocator("iframe[src*='publish']");
+
+            log.info("正在等待子框架内的表单元素加载...");
+            formFrame.locator("#box1").waitFor();
+
+            // ==================== 1. 选择店铺 ====================
+            if (request.getShopName() != null) {
+                selectShop(formFrame, request.getShopName());
+            }
+
+            // ==================== 2. 选择产品类目 ====================
+            if (request.getCategoryName() != null) {
+                selectCategory(formFrame, request.getCategoryName());
+            }
+
+            // ==================== 3. 基本信息填写 ====================
+            // Element UI 结构：每个字段是 .el-form-item，label 文本在 .el-form-item__label，
+            // input 本身无 id（只有 label 上挂着 for）。故用 :has() 按 label 文本锁定对应 form-item 的 input。
+            if (request.getSourceUrl() != null) {
+                formFrame.locator(".el-form-item:has(.el-form-item__label:has-text('来源URL')) input.el-input__inner")
+                        .fill(request.getSourceUrl());
+                pageWait(300);
+            }
+
+            if (request.getChineseTitle() != null) {
+                formFrame.locator(".el-form-item:has(.el-form-item__label:has-text('中文标题')) input.el-input__inner")
+                        .fill(request.getChineseTitle());
+                pageWait(300);
+            }
+
+            if (request.getEnglishTitle() != null) {
+                // 英文标题没有 <label>，但有独特的" 英语 "prepend 标签，用它锁定。
+                formFrame.locator(".el-input-group--prepend")
+                        .filter(new Locator.FilterOptions().setHasText("英语"))
+                        .locator("input.el-input__inner")
+                        .fill(request.getEnglishTitle());
+                pageWait(300);
+            }
+
+            // ==================== 4 分类属性（原产地/材质/化学物质等）====================
+            // 这些字段在选择类目后动态生成，依赖类目已选中。值取自 request.getCategoryAttributes()。
+            if (request.getCategoryAttributes() != null && !request.getCategoryAttributes().isEmpty()) {
+                fillCategoryAttributes(formFrame, request.getCategoryAttributes());
+            }
+
+            // ==================== 5. 商品素材上传（描述图为必填，失败中止）====================
+            // 自动补全未设置的图片路径（从 resource 目录随机取）
+            fillImagePathsFromResources(request);
+
+            // 5a. 选择传图模式
+            if (request.getPicSetType() != null) {
+                selectPicSetType(formFrame, request.getPicSetType());
+            }
+
+            // 5b. 上传产品图（首图、尺寸图、细节图）
+            if (request.getProductMainImage() != null
+                    || request.getProductSizeChartImage() != null
+                    || (request.getProductDetailImages() != null && !request.getProductDetailImages().isEmpty())) {
+                uploadProductImages(formFrame, request);
+            }
+
+            // 5c. 上传描述图（必填，失败中止）
+            if (request.getDescriptionImagePaths() != null && !request.getDescriptionImagePaths().isEmpty()) {
+                uploadDescriptionImages(formFrame, request.getDescriptionImagePaths());
+            }
+
+            // ==================== 7. 变种信息 ====================
+            if ((request.getVariantAttributes() != null && !request.getVariantAttributes().isEmpty())
+                    || (request.getVariantSkus() != null && !request.getVariantSkus().isEmpty())) {
+                fillVariantSkus(formFrame, request);
+            }
+
+            // ==================== 7b. 交易信息（变种属性选择后弹出的表格）====================
+            if (request.getTransactionInfo() != null && !request.getTransactionInfo().isEmpty()) {
+                try {
+                    fillTransactionInfo(formFrame, request.getTransactionInfo());
+                } catch (Exception e) {
+                    log.warn("交易信息填写失败，跳过: {}", e.getMessage());
+                }
+            }
+
+            // ==================== 8. 资质合规（选填，失败不中止）====================
+            if (request.getManufacturer() != null) {
+                try {
+                    selectManufacturer(formFrame, request.getManufacturer());
+                } catch (Exception e) {
+                    log.warn("制造商选择失败，跳过: {}", e.getMessage());
+                }
+            }
+
+            if (request.getEuResponsiblePerson() != null) {
+                try {
+                    selectEuResponsiblePerson(formFrame, request.getEuResponsiblePerson());
+                } catch (Exception e) {
+                    log.warn("欧盟责任人选择失败，跳过: {}", e.getMessage());
+                }
+            }
+
+            // ==================== 8. 保存/刊登 ====================
+            log.info("表单填写完毕，准备提交...");
+            if (request.isPublish()) {
+                formFrame.locator("footer button:has-text('保存并刊登')").click();
+            } else {
+                formFrame.locator("footer button:has-text('保 存')").click();
+            }
+
+            pageWait(5000);
+
+            long elapsed = System.currentTimeMillis() - startTime;
+            String screenshotPath = "screenshots/publish-" + System.currentTimeMillis() + ".png";
+            page.screenshot(new Page.ScreenshotOptions()
+                    .setPath(Paths.get(screenshotPath)).setFullPage(true));
+
+            log.info("刊登完成，耗时 {}ms", elapsed);
+            return PublishResult.success("刊登成功", page.url(), elapsed, screenshotPath);
+
+        } catch (Exception e) {
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.error("刊登失败 (耗时 {}ms)", elapsed, e);
+            return PublishResult.failure("刊登失败: " + e.getMessage(), elapsed, null);
+        }
+    }
+
+    // ========== 🩺 诊断 ==========
+
+    /**
+     * 诊断店铺下拉框结构：点击输入框后截取页面 DOM 信息，用于确定正确选择器。
+     */
+    public String diagnoseShopDropdown() {
+        Page page = null;
+        try {
+            if (browser == null) {
+                initStandalone();
+            }
+            BrowserContext context = browser.contexts().isEmpty()
+                    ? browser.newContext()
+                    : browser.contexts().get(0);
+            page = context.newPage();
+            page.setViewportSize(1920, 1080);
+            page.setDefaultTimeout(properties.getTimeoutMs());
+
+            String url = "https://www.mabangerp.com/index.php?mod=main.goPublish" +
+                    "&url=aHR0cHM6Ly9wdWJsaXNoLm1hYmFuZ2VycC5jb20vcHVibGlzaC11" +
+                    "aS8jL3Rpa3Rva0Z1bGxTZXJ2aWNlRGV0YWlsP2NLZXk9TUFCQU5HX0VSU" +
+                    "F9QUklWQVRFX0xPR0lOXzQxNDU3Ml83MzU2MzFfUFVCTElTSA==";
+            page.navigate(url);
+            page.waitForSelector(IFRAME_SELECTOR);
+            page.waitForTimeout(3000);
+
+            FrameLocator frame = page.frameLocator(IFRAME_SELECTOR);
+            StringBuilder report = new StringBuilder();
+
+            // IFrame 内所有可见文本
+            report.append("=== IFRAME BODY TEXT ===\n");
+            frame.locator("body").allInnerTexts().forEach(t -> report.append(t).append("\n"));
+
+            // 点击店铺输入框
+            Locator shopInput = frame.locator("input[placeholder='请选择店铺']");
+            if (shopInput.isVisible()) {
+                shopInput.click();
+                page.waitForTimeout(2000);
+            }
+
+            // 截图
+            String ssPath = "screenshots/diag-shop-" + System.currentTimeMillis() + ".png";
+            page.screenshot(new Page.ScreenshotOptions().setPath(Paths.get(ssPath)).setFullPage(true));
+            report.append("\n=== 截图 ===").append(ssPath).append("\n");
+
+            // 页面 body 文本（下拉可能渲染在根节点）
+            report.append("\n=== PAGE BODY TEXT ===\n");
+            page.locator("body").allInnerTexts().forEach(t -> report.append(t.length() > 2000 ? t.substring(0, 2000) + "..." : t).append("\n"));
+
+            // role=option / 下拉容器 元素
+            report.append("\n=== DROPDOWN-RELATED ELEMENTS ===\n");
+            page.locator("[role='option'], [role='listbox'], " +
+                    ".el-select-dropdown, .ant-select-dropdown, " +
+                    ".el-select__popper, .ant-select-popup, " +
+                    ".el-popper, .el-scrollbar, " +
+                    ".select-dropdown, .dropdown-container").all().forEach(el -> {
+                try {
+                    String tag = el.evaluate("e => e.tagName").toString();
+                    String text = el.innerText().replace("\n", " ").substring(0, Math.min(200, el.innerText().length()));
+                    boolean vis = el.isVisible();
+                    String clazz = el.getAttribute("class") != null ? el.getAttribute("class") : "";
+                    report.append(String.format("  tag=%-8s visible=%-5s class=%s  text='%s'\n", tag, vis, clazz, text));
+                } catch (Exception ex) {
+                    report.append("  error: ").append(ex.getMessage()).append("\n");
+                }
+            });
+
+            // iframe 内的 option-like 元素
+            report.append("\n=== IFRAME DROPDOWN ELEMENTS ===\n");
+            frame.locator("[role='option'], .el-select-dropdown__item, .ant-select-item, " +
+                    "li, .el-select-dropdown").all().forEach(el -> {
+                try {
+                    String text = el.innerText().replace("\n", " ").substring(0, Math.min(200, el.innerText().length()));
+                    if (!text.isBlank()) {
+                        boolean vis = el.isVisible();
+                        report.append(String.format("  visible=%-5s text='%s'\n", vis, text));
+                    }
+                } catch (Exception ignored) { }
+            });
+
+            log.info("🩺 诊断报告:\n{}", report);
+            return report.toString();
+
+        } catch (Exception e) {
+            log.error("诊断失败", e);
+            return "诊断失败: " + e.getMessage();
+        } finally {
+            if (page != null) page.close();
+        }
+    }
+
+    // ========== 私有辅助方法 ==========
+
+    /**
+     * 选择店铺（必填：失败抛异常，由 publish 中止流程）
+     */
+    private void selectShop(FrameLocator frame, String shopName) {
+        log.debug("选择店铺: {}", shopName);
+        selectElOption(frame, "请选择店铺", shopName);
+        pageWait(500);
+    }
+
+    /**
+     * 选择产品类目（必填：失败抛异常，由 publish 中止流程）。
+     * <p>
+     * 类目弹窗结构（CDP 实测）：点"选择类目"按钮 → 弹出类目树，节点为
+     * label.el-transfer-panel-item，文本形如 "女装(Womenswear)"，有子级时带
+     * &lt;i class="fa fa-angle-right has-children"&gt; 箭头。点击箭头会"选中该级 + 展开子级"。
+     * 故按类目路径（/ 或 &gt; 分隔）逐级点箭头下钻；某级匹配不到则停在上一级并告警。
+     * 注意：该树无"连衣裙"等品类，只有 女装/标码女装/大码女装 这类官方类目节点。
+     */
+    private void selectCategory(FrameLocator frame, String categoryName) {
+        log.debug("选择产品类目: {}", categoryName);
+        // 1. 点"选择类目"按钮打开弹窗
+        Locator selectBtn = frame.getByRole(AriaRole.BUTTON,
+                new FrameLocator.GetByRoleOptions().setName("选择类目"));
+        if (!selectBtn.isVisible()) {
+            throw new RuntimeException("类目「选择类目」按钮不可见，可能已选过类目: " + categoryName);
+        }
+        selectBtn.click();
+        pageWait(1000);
+
+        // 2. 逐级下钻：在当前可见节点中匹配本级文本，点箭头(选中+展开)或叶子节点
+        String[] levels = categoryName.split("[>/]");
+        String selected = null;
+        for (String lvl : levels) {
+            String level = lvl.trim();
+            if (level.isEmpty()) continue;
+            Locator item = frame.locator("label.el-transfer-panel-item")
+                    .filter(new Locator.FilterOptions().setHasText(level))
+                    .first();
+            try {
+                item.waitFor(new Locator.WaitForOptions().setTimeout(4000));
+                Locator arrow = item.locator("i.has-children");
+                if (arrow.isVisible()) {
+                    arrow.click();          // 选中本级并展开子级
+                } else {
+                    item.click();           // 叶子节点直接选中
+                }
+                selected = level;
+                log.debug("已选类目层级: {}", level);
+                pageWait(800);
+            } catch (Exception e) {
+                // 诊断：dump 当前弹窗内"可见"的类目项文本，定位是弹窗没打开、还是该级确实无此节点。
+                List<String> visibleItems;
+                try {
+                    visibleItems = frame.locator("label.el-transfer-panel-item:visible").allInnerTexts();
+                } catch (Exception ignored) {
+                    visibleItems = List.of();
+                }
+                log.warn("类目层级 '{}' 未找到，停留在 '{}'（完整路径: {}）。当前弹窗可见类目项: {}",
+                        level, selected, categoryName, visibleItems);
+                break;
+            }
+        }
+        if (selected == null) {
+            throw new RuntimeException("未匹配到任何类目层级: " + categoryName
+                    + "（请确认类目名为官方类目，如 女装/标码女装）");
+        }
+
+        // 3. 点"确定"——类目弹窗 footer 内的 warning 按钮。
+        // 按钮文本是"确 定"（中间带空格），getByRole.setName 默认做子串匹配，"确定" 无法命中"确 定"，
+        // 故改用按钮 class 定位：确定=el-button--warning(橙)，取消=el-button--default。
+        Locator dialog = frame.locator("div.el-dialog:has(label.el-transfer-panel-item)");
+        Locator confirmBtn = dialog.locator(".el-dialog__footer button.el-button--warning");
+        confirmBtn.click();
+        log.info("类目选择完成，最终选中: {}（请求路径: {}）", selected, categoryName);
+        pageWait(1000);
+    }
+
+    /**
+     * 填写分类属性（类目选中后动态出现的属性表单）。
+     * <p>
+     * 页面结构（CDP 实测）：每个属性是一行 .el-form-item，结构为
+     * <pre>
+     *   label.el-form-item__label &gt; span "原产地(Region Of Origin)"
+     *   .el-select &gt; input.el-input__inner[placeholder="请选择原产地"]
+     *   .el-select-dropdown.is-multiple &gt; li.el-select-dropdown__item &gt; span "中国(China)"
+     * </pre>
+     * 关键点：
+     * <ul>
+     *   <li>每个下拉的 input placeholder 与 label 文本一一对应（"请选择" + 属性名）。</li>
+     *   <li>下拉为<b>多选</b>（is-multiple），点选项是"加标签"动作，不关闭下拉。</li>
+     *   <li>选项文本跨下拉重复（如多个下拉都有"否(No)"），所以匹配 .el-select-dropdown__item 时
+     *       <b>必须加 :visible</b>，限定到当前打开的那一个下拉，否则会命中其它关闭的下拉报 strict mode。</li>
+     * </ul>
+     *
+     * @param frame      iframe 表单
+     * @param attributes key=属性名（label 中文部分，如"原产地"），value=选项完整文本（含括号英文）
+     */
+    private void fillCategoryAttributes(FrameLocator frame, Map<String, String> attributes) {
+        int ok = 0, fail = 0;
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            String attrName = entry.getKey();
+            String optionText = entry.getValue();
+            if (attrName == null || attrName.isBlank() || optionText == null || optionText.isBlank()) {
+                continue;
+            }
+            try {
+                selectCategoryAttribute(frame, attrName, optionText);
+                ok++;
+            } catch (Exception e) {
+                fail++;
+                log.warn("分类属性 [{}] 选择失败，跳过: {}", attrName, e.getMessage());
+            }
+        }
+        log.info("分类属性填写完成: 成功 {} 项, 失败 {} 项", ok, fail);
+    }
+
+    /**
+     * 选择单个分类属性：点击 .el-select 触发器打开下拉 → 在<b>可见</b>下拉中点目标选项 → 按 Escape 收起。
+     * <p>
+     * Element UI 多选 el-select 结构：
+     * <pre>
+     *   .el-select
+     *     .el-select__tags &gt; input.el-select__input.is-small   ← 搜索/输入框，接收点击
+     *     .el-input &gt; input.el-input__inner[placeholder][readonly] ← 显示框，被 .el-select__tags 遮挡
+     * </pre>
+     * 关键坑：readonly 显示框被上层的 .el-select__tags 盖住，直接点它会被拦截
+     * （报 "intercepts pointer events" → 30s 超时）。故点击整个 .el-select 容器，让事件正常冒泡打开下拉。
+     *
+     * @param frame       iframe 表单
+     * @param attrName    属性名（label 内中文部分，如"原产地"，用于拼 placeholder）
+     * @param optionText  选项完整文本（如"中国大陆(Mainland China)"）
+     */
+    private void selectCategoryAttribute(FrameLocator frame, String attrName, String optionText) {
+        // 定位该属性对应的 .el-select 容器。优先用 placeholder（与 label 一一对应，最精确），
+        // 再从该 input 上溯到祖先 .el-select；找不到则按 label 文本兜底。
+        Locator input = frame.locator("input[placeholder='请选择" + attrName + "']");
+        Locator trigger;
+        if (input.count() > 0) {
+            trigger = input.locator("xpath=ancestor::div[contains(@class,'el-select')][1]");
+        } else {
+            trigger = frame.locator(".el-form-item:has(.el-form-item__label:has-text('" + attrName + "')) .el-select");
+        }
+        trigger.first().click();
+        pageWait(300);
+
+        // 关键：必须 :visible，只匹配当前打开的那个下拉（其它关闭的下拉项也在 DOM 中，
+        // 且选项文本跨下拉重复如"否(No)"，不加限定会触发 strict mode 多匹配）
+        Locator option = frame.locator(".el-select-dropdown__item:visible")
+                .filter(new Locator.FilterOptions().setHasText(optionText))
+                .first();
+        option.waitFor(new Locator.WaitForOptions().setTimeout(4000));
+        option.click();
+        pageWait(300);
+
+        // 多选下拉选完不会自动关闭，按 Escape 收起，避免遮挡后续字段
+        try {
+            frame.locator("body").press("Escape");
+        } catch (Exception ignored) {
+            // 收起失败不影响数据，忽略
+        }
+        pageWait(200);
+    }
+
+    /**
+     * 选择品牌
+     */
+    private void selectBrand(FrameLocator frame, String brand) {
+        log.debug("选择品牌: {}", brand);
+        selectElOption(frame, "请选择", brand);
+        pageWait(500);
+    }
+
+    /**
+     * 上传产品视频
+     */
+    private void uploadVideo(FrameLocator frame, String videoPath) {
+        log.debug("上传视频: {}", videoPath);
+        // 点击添加视频按钮
+        Locator addVideoBtn = frame.getByRole(AriaRole.BUTTON,
+                new FrameLocator.GetByRoleOptions().setName("添加视频"));
+        if (addVideoBtn.isVisible()) {
+            addVideoBtn.click();
+            pageWait(1000);
+            // 文件上传 input（el-upload 的 input 被隐藏，setInputFiles 可直接触发，不要用 isVisible 判断）
+            Locator fileInput = frame.locator("input[type='file']").first();
+            fileInput.setInputFiles(Paths.get(videoPath));
+            log.debug("视频文件已选择: {}", videoPath);
+            pageWait(3000); // 等待上传
+        }
+    }
+
+    /**
+     * 从 resource 目录自动补全未设置的图片路径。
+     * <p>
+     * 目录结构：src/main/resources/templates/素材/
+     *   └─ 主图素材/素材1.jpg   → 首图
+     *   └─ 副图/2.jpg ~ 9.jpg   → 尺寸图、细节图、描述图（随机选取）
+     * <p>
+     * 已设置的字段不会被覆盖，仅补 null/空 的字段。
+     */
+    private void fillImagePathsFromResources(TikTokPublishRequest request) {
+        // 默认传图模式
+        if (request.getPicSetType() == null) {
+            request.setPicSetType("SpuWithSkc");
+        }
+
+        String baseDir = RESOURCE_IMAGE_DIR;
+        File mainDir = new File(baseDir + "主图素材");
+        File subDir = new File(baseDir + "副图");
+
+        // 首图：主图素材/素材1.jpg
+        if (request.getProductMainImage() == null) {
+            File[] mainFiles = mainDir.listFiles((d, name) -> name.endsWith(".jpg"));
+            if (mainFiles != null && mainFiles.length > 0) {
+                request.setProductMainImage(mainFiles[0].getAbsolutePath());
+                log.debug("资源补全 → productMainImage: {}", request.getProductMainImage());
+            }
+        }
+
+        // 收集副图文件列表
+        File[] subFiles = subDir.listFiles((d, name) -> name.endsWith(".jpg"));
+        if (subFiles == null || subFiles.length == 0) {
+            log.warn("副图目录为空或不存在: {}", subDir.getAbsolutePath());
+            return;
+        }
+
+        Random rand = new Random();
+        // 打乱用副本（避免原地修改）
+        List<File> shuffled = new ArrayList<>(List.of(subFiles));
+        java.util.Collections.shuffle(shuffled, rand);
+        int idx = 0;
+
+        // 尺寸图：随机取 1 张
+        if (request.getProductSizeChartImage() == null && idx < shuffled.size()) {
+            request.setProductSizeChartImage(shuffled.get(idx++).getAbsolutePath());
+            log.debug("资源补全 → productSizeChartImage: {}", request.getProductSizeChartImage());
+        }
+
+        // 细节图：随机取 2 张
+        if (request.getProductDetailImages() == null || request.getProductDetailImages().isEmpty()) {
+            List<String> detailPaths = new ArrayList<>();
+            int take = Math.min(2, shuffled.size() - idx);
+            for (int i = 0; i < take; i++) {
+                detailPaths.add(shuffled.get(idx++).getAbsolutePath());
+            }
+            request.setProductDetailImages(detailPaths);
+            log.debug("资源补全 → productDetailImages: {}", detailPaths);
+        }
+
+        // 描述图：随机取 4 张（不重复）
+        if (request.getDescriptionImagePaths() == null || request.getDescriptionImagePaths().isEmpty()) {
+            List<String> descPaths = new ArrayList<>();
+            int take = Math.min(4, shuffled.size() - idx);
+            for (int i = 0; i < take; i++) {
+                descPaths.add(shuffled.get(idx++).getAbsolutePath());
+            }
+            request.setDescriptionImagePaths(descPaths);
+            log.debug("资源补全 → descriptionImagePaths: {}", descPaths);
+        }
+    }
+
+    /**
+     * 选择传图模式
+     * <p>
+     * 页面结构：el-radio-group，两个 radio：SpuWithSkc（SPU轮播图+SKC预览）、SpuWithSku（SPU轮播图+SKU预览）。
+     * 直接用 role=radio + name 点击对应 label。
+     */
+    private void selectPicSetType(FrameLocator frame, String picSetType) {
+        log.debug("选择传图模式: {}", picSetType);
+        String labelText = "SpuWithSkc".equals(picSetType) ? "SPU轮播图+SKC预览" : "SPU轮播图+SKU预览";
+        Locator radio = frame.getByRole(AriaRole.RADIO,
+                new FrameLocator.GetByRoleOptions().setName(labelText));
+        if (radio.isVisible()) {
+            radio.click();
+            pageWait(300);
+            log.debug("已选择传图模式: {} ({})", labelText, picSetType);
+        } else {
+            log.warn("传图模式 radio 不可见: {}", labelText);
+        }
+    }
+
+    /**
+     * 上传产品图（首图、尺寸图、细节图）
+     * <p>
+     * 产品图区域有 3 个槽位，各有一个「选择图片」按钮 → 弹出菜单 → "本地图片" → input[type=file]。
+     * 与描述图类似，input[type=file] 始终在 DOM 中但被隐藏，setInputFiles 可直接触发。
+     * 按各槽位下方的文本标签（首图/尺寸图/细节图）定位对应 input。
+     */
+    private void uploadProductImages(FrameLocator frame, TikTokPublishRequest request) {
+        // 上传首图
+        if (request.getProductMainImage() != null) {
+            log.debug("上传首图: {}", request.getProductMainImage());
+            uploadToSlot(frame, "首图", request.getProductMainImage());
+        }
+
+        // 上传尺寸图
+        if (request.getProductSizeChartImage() != null) {
+            log.debug("上传尺寸图: {}", request.getProductSizeChartImage());
+            uploadToSlot(frame, "尺寸图", request.getProductSizeChartImage());
+        }
+
+        // 上传细节图
+        if (request.getProductDetailImages() != null && !request.getProductDetailImages().isEmpty()) {
+            log.debug("上传 {} 张细节图（一次性传入防止覆盖）", request.getProductDetailImages().size());
+            uploadAllToSlot(frame, "细节图", request.getProductDetailImages());
+        }
+    }
+
+    /**
+     * 上传单张图片到指定产品图槽位
+     */
+    private void uploadToSlot(FrameLocator frame, String slotLabel, String imagePath) {
+        // 按槽位文本找到对应的 .draggable-box，再取其内 input[type=file]
+        Locator fileInput = frame.locator(".draggable-box")
+                .filter(new Locator.FilterOptions().setHasText(slotLabel))
+                .locator("input[type='file']").first();
+        fileInput.setInputFiles(Paths.get(imagePath));
+        log.debug("已选择 {} 到槽位 [{}]", imagePath, slotLabel);
+        pageWait(2000); // 等待单张上传
+    }
+
+    /**
+     * 一次性上传多张图片到同一个槽位（避免循环 setInputFiles 导致覆盖）
+     */
+    private void uploadAllToSlot(FrameLocator frame, String slotLabel, List<String> imagePaths) {
+        Locator fileInput = frame.locator(".draggable-box")
+                .filter(new Locator.FilterOptions().setHasText(slotLabel))
+                .locator("input[type='file']").first();
+        fileInput.setInputFiles(
+                imagePaths.stream()
+                        .map(Paths::get)
+                        .toArray(java.nio.file.Path[]::new)
+        );
+        log.debug("已选择 {} 张图片到槽位 [{}]", imagePaths.size(), slotLabel);
+        pageWait(3000); // 等待上传
+    }
+
+    /**
+     * 上传描述图
+     */
+    private void uploadDescriptionImages(FrameLocator frame, List<String> imagePaths) {
+        log.debug("上传 {} 张描述图", imagePaths.size());
+        // 描述图区域是 Element UI 的 el-upload：文件 input[type=file] 始终在 DOM 中但被隐藏，
+        // Playwright 的 setInputFiles 可直接对隐藏 input 触发 change 上传，无需点击 "选择图片"。
+        // 用 CSS class .description-image-group 精确定位该区域，避免 getByText 链式查找失败。
+        Locator fileInput = frame.locator(".description-image-group input[type='file']").first();
+        fileInput.setInputFiles(
+                imagePaths.stream()
+                        .map(Paths::get)
+                        .toArray(java.nio.file.Path[]::new)
+        );
+        log.debug("已选择 {} 张描述图，等待上传完成", imagePaths.size());
+        pageWait(5000); // 等待上传
+    }
+
+    /**
+     * 填写变种信息。
+     * <p>
+     * 新版 UI 结构（根据 HTML）：
+     * <ol>
+     *   <li>变种属性区有若干 {@code natureBlock}，每个标题为属性名（如"颜色""尺码"），
+     *       内含 checkbox 列表 + 搜索框 +"添加自定义"按钮。</li>
+     *   <li>勾选 checkbox 后，底部 {@code vxe-table} 自动生成组合行。
+     *       表格列：色值、预览图（文件上传）、操作。</li>
+     * </ol>
+     * 优先使用 request.variantAttributes（新版），无则退回到旧的 variantSkus 逻辑。
+     */
+    private void fillVariantSkus(FrameLocator frame, TikTokPublishRequest request) {
+        // === 新版：checkbox 属性组 + vxe-table ===
+        if (request.getVariantAttributes() != null && !request.getVariantAttributes().isEmpty()) {
+            fillVariantByAttributes(frame, request);
+            return;
+        }
+
+        // === 旧版：简单 SKU input 行（兼容） ===
+        fillVariantBySkuList(frame, request.getVariantSkus());
+    }
+
+    /**
+     * 新版变种：按属性组选取 + 预览图上表
+     */
+    private void fillVariantByAttributes(FrameLocator frame, TikTokPublishRequest request) {
+        // 1. 遍历每个属性组，勾选对应的 checkbox
+        for (Map.Entry<String, List<String>> entry : request.getVariantAttributes().entrySet()) {
+            String attrName = entry.getKey();
+            List<String> attrValues = entry.getValue();
+            log.debug("选择变种属性组 [{}] = {}", attrName, attrValues);
+
+            // 找到该属性对应的 natureBlock（标题文本匹配）
+            Locator block = frame.locator(".natureBlock")
+                    .filter(new Locator.FilterOptions().setHasText(attrName))
+                    .first();
+
+            for (String value : attrValues) {
+                // 尝试直接勾选已渲染的 checkbox
+                Locator checkbox = block.locator(".el-checkbox")
+                        .filter(new Locator.FilterOptions().setHasText(value))
+                        .first();
+                if (checkbox.isVisible()) {
+                    checkbox.click();
+                    pageWait(200);
+                    continue;
+                }
+
+                // 未渲染 → 在搜索框输入后重试
+                Locator searchInput = block.locator("input[placeholder='请输入搜索内容']");
+                if (searchInput.isVisible()) {
+                    searchInput.fill(value);
+                    pageWait(500);
+                    Locator filtered = block.locator(".el-checkbox")
+                            .filter(new Locator.FilterOptions().setHasText(value))
+                            .first();
+                    if (filtered.isVisible()) {
+                        filtered.click();
+                        pageWait(200);
+                        searchInput.fill(""); // 清空搜索
+                        pageWait(200);
+                        continue;
+                    }
+                }
+
+                // 搜索后仍无 → 通过"添加自定义"创建
+                Locator customInput = block.locator("input[placeholder='请输入属性值']");
+                if (customInput.isVisible()) {
+                    customInput.fill(value);
+                    pageWait(200);
+                    block.locator("button:has-text('添加自定义')").click();
+                    pageWait(300);
+                    // 刚添加的可能在 checkbox 列表最后，勾选它
+                    Locator newCheckbox = block.locator(".el-checkbox")
+                            .filter(new Locator.FilterOptions().setHasText(value))
+                            .first();
+                    if (newCheckbox.isVisible()) {
+                        newCheckbox.click();
+                        pageWait(200);
+                    }
+                }
+            }
+        }
+
+        // 2. 等待表格生成行
+        pageWait(2000);
+        Locator tableBody = frame.locator(".vxe-table--body-wrapper tbody");
+        long rowCount = tableBody.locator("tr").count();
+        log.debug("变种表格已生成 {} 行", rowCount);
+
+        // 3. 上传预览图（如果提供了）
+        if (request.getVariantPreviewImages() != null && !request.getVariantPreviewImages().isEmpty()) {
+            List<String> images = request.getVariantPreviewImages();
+            long rows = tableBody.locator("tr").count();
+            for (int i = 0; i < Math.min(images.size(), rows); i++) {
+                // 每行的预览图列有 file input
+                Locator row = tableBody.locator("tr").nth(i);
+                Locator fileInput = row.locator("input[type='file']").first();
+                if (fileInput.count() > 0) {
+                    fileInput.setInputFiles(Paths.get(images.get(i)));
+                    log.debug("上传预览图 {} 到表格第 {} 行", images.get(i), i + 1);
+                    pageWait(2000);
+                }
+            }
+        }
+    }
+
+    /**
+     * 旧版变种：逐行填写 SKU / 价格 / 库存 input
+     */
+    private void fillVariantBySkuList(FrameLocator frame, List<TikTokPublishRequest.VariantSku> variants) {
+        if (variants == null) return;
+        for (int i = 0; i < variants.size(); i++) {
+            TikTokPublishRequest.VariantSku variant = variants.get(i);
+            log.debug("填写变种 #{}: {}", i + 1, variant.getSku());
+
+            // 如果有多行，可能需要点击 "添加" 按钮
+            if (i > 0) {
+                Locator addBtn = frame.getByRole(AriaRole.BUTTON,
+                        new FrameLocator.GetByRoleOptions().setName("添加"));
+                if (addBtn.isVisible()) {
+                    addBtn.click();
+                    pageWait(500);
+                }
+            }
+
+            // 填写 SKU
+            if (variant.getSku() != null) {
+                Locator skuInput = frame.locator("input[placeholder*='SKU']").nth(i);
+                if (skuInput.isVisible()) {
+                    skuInput.fill(variant.getSku());
+                }
+            }
+
+            // 填写价格
+            if (variant.getPrice() != null) {
+                Locator priceInput = frame.locator("input[placeholder*='价格']").nth(i);
+                if (priceInput.isVisible()) {
+                    priceInput.fill(String.valueOf(variant.getPrice()));
+                }
+            }
+
+            // 填写库存
+            if (variant.getStock() != null) {
+                Locator stockInput = frame.locator("input[placeholder*='库存']").nth(i);
+                if (stockInput.isVisible()) {
+                    stockInput.fill(String.valueOf(variant.getStock()));
+                }
+            }
+
+            pageWait(300);
+        }
+    }
+
+    /**
+     * 填写交易信息（变种属性选择完成后弹出的表格, id=box7）。
+     * <p>
+     * 表格结构：
+     * <ul>
+     *   <li>每行 = 一个颜色</li>
+     *   <li>col_26 = 颜色名</li>
+     *   <li>col_27 = SKC 输入框（跨 merge-div 共用）</li>
+     *   <li>col_28 = 备货模式 select</li>
+     *   <li>col_29 = 尺码 merge-div 列表</li>
+     *   <li>col_30 ~ col_35 = SKU/价格/库存/尺寸/重量/状态，各按尺码拆 merge-div</li>
+     * </ul>
+     */
+    private void fillTransactionInfo(FrameLocator frame, List<TikTokPublishRequest.TransactionRow> rows) {
+        log.debug("填写交易信息，共 {} 条", rows.size());
+
+        // 等待交易信息卡片出现
+        frame.locator("#box7").waitFor(new Locator.WaitForOptions().setTimeout(10000));
+        pageWait(1000);
+
+        Locator table = frame.locator("#box7 .vxe-table--body-wrapper tbody");
+        long rowCount = table.locator("tr").count();
+        if (rowCount == 0) {
+            log.warn("交易信息表格未生成，跳过");
+            return;
+        }
+
+        for (int r = 0; r < rowCount; r++) {
+            Locator row = table.locator("tr").nth(r);
+
+            // 第1列: 颜色（文字）
+            String color = row.locator("td:nth-child(1)").innerText().trim();
+            if (color.isEmpty()) continue;
+
+            // 第2列: SKC input
+            Locator skcInput = row.locator("td:nth-child(2) input[type='text']").first();
+
+            // 第4列: 尺码 merge-div（确定尺寸数量）
+            long sizeCount = row.locator("td:nth-child(4) .merge-div").count();
+            if (sizeCount == 0) continue;
+
+            for (int s = 0; s < sizeCount; s++) {
+                // 第4列第s个merge-div: 尺码名称
+                String size = row.locator("td:nth-child(4) .merge-div").nth(s).innerText().trim();
+
+                TikTokPublishRequest.TransactionRow tr = rows.stream()
+                        .filter(t -> color.equals(t.getColor()) && size.equals(t.getSize()))
+                        .findFirst().orElse(null);
+                if (tr == null) {
+                    log.warn("未找到匹配的交易行: color={}, size={}", color, size);
+                    continue;
+                }
+
+                // SKC — 第2列，只在第一个 merge-div 填写（跨行共用）
+                if (s == 0 && tr.getSkc() != null && skcInput.isVisible()) {
+                    skcInput.fill(tr.getSkc());
+                    log.debug("  填写 SKC [{}] = {}", color, tr.getSkc());
+                }
+
+                // 备货模式 — 第3列 el-select，仅在第一个 merge-div 操作
+                if (s == 0 && tr.getStockingMode() != null) {
+                    // 直接操作 el-select 的 Vue 组件实例设置内部值，
+                    // 绕过 UI 下拉面板（popper-append-to-body 搬移到 <body> 不可点击）。
+                    row.locator("td:nth-child(3) .el-select").first().evaluate("(el, value) => {" +
+                            "  const vm = el.__vue__;" +
+                            "  if (!vm) return;" +
+                            "  vm.selectedLabel = value;" +
+                            "  vm.value = value;" +
+                            "  vm.$emit('input', value);" +
+                            "  vm.$emit('change', value);" +
+                            "}", tr.getStockingMode());
+                    log.debug("  填写备货模式 [{}] = {} (via Vue vm)", color, tr.getStockingMode());
+                    pageWait(300);
+                }
+
+                // 第5~10列各自的字段（按 merge-div 索引 s 对应同索引的尺码）
+                Locator skuInput = row.locator("td:nth-child(5) .merge-div").nth(s).locator("input[type='text']").first();
+                Locator priceInput = row.locator("td:nth-child(6) .merge-div").nth(s).locator("input[type='text']").first();
+                Locator stockInput = row.locator("td:nth-child(7) .merge-div").nth(s).locator("input[type='text']").first();
+                Locator lengthInput = row.locator("td:nth-child(8) .merge-div").nth(s).locator("input[placeholder='长']").first();
+                Locator widthInput = row.locator("td:nth-child(8) .merge-div").nth(s).locator("input[placeholder='宽']").first();
+                Locator heightInput = row.locator("td:nth-child(8) .merge-div").nth(s).locator("input[placeholder='高']").first();
+                Locator weightInput = row.locator("td:nth-child(9) .merge-div").nth(s).locator("input[type='text']").first();
+
+                if (tr.getSku() != null) skuInput.fill(tr.getSku());
+                if (tr.getPrice() != null) priceInput.fill(String.valueOf(tr.getPrice()));
+                if (tr.getStock() != null) stockInput.fill(String.valueOf(tr.getStock()));
+                if (tr.getLength() != null) lengthInput.fill(String.valueOf(tr.getLength()));
+                if (tr.getWidth() != null) widthInput.fill(String.valueOf(tr.getWidth()));
+                if (tr.getHeight() != null) heightInput.fill(String.valueOf(tr.getHeight()));
+                if (tr.getWeight() != null) weightInput.fill(String.valueOf(tr.getWeight()));
+
+                // 第10列: 状态开关
+                if (tr.getEnabled() != null) {
+                    Locator switchEl = row.locator("td:nth-child(10) .merge-div").nth(s).locator(".el-switch");
+                    boolean isChecked = switchEl.locator("input[type='checkbox']").isChecked();
+                    if (tr.getEnabled() != isChecked) {
+                        switchEl.click();
+                        pageWait(200);
+                    }
+                }
+
+                pageWait(200);
+            }
+        }
+        log.debug("交易信息填写完成");
+    }
+
+    /**
+     * 选择制造商
+     */
+    private void selectManufacturer(FrameLocator frame, String manufacturer) {
+        log.debug("选择制造商: {}", manufacturer);
+        selectElOption(frame, "请选择制造商", manufacturer);
+        pageWait(500);
+    }
+
+    /**
+     * 选择欧盟责任人
+     */
+    private void selectEuResponsiblePerson(FrameLocator frame, String person) {
+        log.debug("选择欧盟责任人: {}", person);
+        selectElOption(frame, "请选择欧盟责任人", person);
+        pageWait(500);
+    }
+
+    /**
+     * 通用 el-select 选择：点开输入框→等可见选项→点击。
+     * 带重试（首次点击偶发不触发下拉打开，已通过 CDP 实测确认点 input 可打开）。
+     * 失败抛异常，由调用方决定是否中止流程。
+     */
+    private void selectElOption(FrameLocator frame, String inputPlaceholder, String text) {
+        Locator input = frame.locator("input[placeholder='" + inputPlaceholder + "']");
+        // 只匹配 el-select 下拉项（避免命中页面其它 <li>），按文本过滤
+        Locator item = frame.locator(".el-select-dropdown__item")
+                .filter(new Locator.FilterOptions().setHasText(text))
+                .first();
+        Exception last = null;
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                input.click();
+            } catch (Exception e) {
+                last = e;
+            }
+            try {
+                // 等待目标项变为可见（下拉打开后该项才可见）
+                item.waitFor(new Locator.WaitForOptions().setTimeout(3000));
+                item.click();
+                log.debug("已选择 [{}] = {}", inputPlaceholder, text);
+                return;
+            } catch (Exception e) {
+                last = e;
+                log.warn("下拉未打开或未找到项 '{}' (第{}次)，重试...", text, attempt);
+                pageWait(500);
+            }
+        }
+        throw new RuntimeException("选择下拉项失败: placeholder=" + inputPlaceholder + ", text=" + text
+                + (last != null ? " (" + last.getMessage() + ")" : ""));
+    }
+
+    private void pageWait(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * 带重试的导航：新建标签页后立即 navigate 偶发 ERR_ADDRESS_INVALID，重试一次即可。
+     */
+    private void navigateWithRetry(Page page, String url) {
+        int maxAttempts = 3;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                page.navigate(url);
+                return;
+            } catch (Exception e) {
+                log.warn("导航失败 (第{}次): {} - {}", attempt, url, e.getMessage());
+                if (attempt == maxAttempts) {
+                    throw e;
+                }
+                pageWait(1500);
+            }
+        }
+    }
+
+    // ========== 结果封装 ==========
+
+    @lombok.Data
+    @lombok.Builder
+    @lombok.AllArgsConstructor(access = lombok.AccessLevel.PRIVATE)
+    public static class PublishResult {
+        private boolean success;
+        private String message;
+        private String finalUrl;
+        private long elapsedMs;
+        private String screenshotPath;
+
+        public static PublishResult success(String message, String finalUrl, long elapsedMs, String screenshotPath) {
+            return PublishResult.builder()
+                    .success(true)
+                    .message(message)
+                    .finalUrl(finalUrl)
+                    .elapsedMs(elapsedMs)
+                    .screenshotPath(screenshotPath)
+                    .build();
+        }
+
+        public static PublishResult failure(String message, long elapsedMs, String screenshotPath) {
+            return PublishResult.builder()
+                    .success(false)
+                    .message(message)
+                    .elapsedMs(elapsedMs)
+                    .screenshotPath(screenshotPath)
+                    .build();
+        }
+    }
+}
