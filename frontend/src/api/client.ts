@@ -1,0 +1,72 @@
+import type { ProductMaterialPackage, SopTemplate, SopTemplateUpdateRequest } from './types';
+
+function errorMessageFromText(text: string, status: number): string {
+  try {
+    const payload: unknown = JSON.parse(text);
+
+    if (payload && typeof payload === 'object') {
+      const { message, error } = payload as { message?: unknown; error?: unknown };
+      if (typeof message === 'string' && message) {
+        return message;
+      }
+      if (typeof error === 'string' && error) {
+        return error;
+      }
+    }
+  } catch {
+    // Response was not JSON; fall back to the raw text below.
+  }
+
+  return text || `请求失败: ${status}`;
+}
+
+async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...init.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(errorMessageFromText(text, response.status));
+  }
+
+  return response.json() as Promise<T>;
+}
+
+export function listTemplates(): Promise<SopTemplate[]> {
+  return request<SopTemplate[]>('/api/sop-templates');
+}
+
+export function createTemplate(template: SopTemplate): Promise<SopTemplate> {
+  return request<SopTemplate>('/api/sop-templates', {
+    method: 'POST',
+    body: JSON.stringify(template),
+  });
+}
+
+export function updateTemplate(
+  templateId: string,
+  template: SopTemplateUpdateRequest,
+): Promise<SopTemplate> {
+  const { name, titlePrompt, mainImagePrompt } = template;
+
+  return request<SopTemplate>(`/api/sop-templates/${encodeURIComponent(templateId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ name, titlePrompt, mainImagePrompt }),
+  });
+}
+
+export function parseMaterialPackage(materialPackagePath: string): Promise<ProductMaterialPackage> {
+  return request<ProductMaterialPackage>('/api/material-packages/parse', {
+    method: 'POST',
+    body: JSON.stringify({ materialPackagePath }),
+  });
+}
+
+export function localImageUrl(path: string): string {
+  return `/api/local-files/image?path=${encodeURIComponent(path)}`;
+}
