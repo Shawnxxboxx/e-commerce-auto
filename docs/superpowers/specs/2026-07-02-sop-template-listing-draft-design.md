@@ -96,6 +96,24 @@ mainImagePromptSnapshot
 
 ## MySQL 表结构
 
+本地 MySQL 使用数据库：
+
+```sql
+CREATE DATABASE IF NOT EXISTS `e-commerce` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE `e-commerce`;
+```
+
+注意：数据库名 `e-commerce` 包含连字符，SQL 脚本中引用数据库名时需要使用反引号。
+
+Spring Boot 连接配置示例：
+
+```properties
+spring.datasource.url=jdbc:mysql://localhost:3306/e-commerce?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+spring.datasource.username=你的本地用户名
+spring.datasource.password=你的本地密码
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+```
+
 ### sop_template
 
 ```sql
