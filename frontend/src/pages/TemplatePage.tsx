@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Drawer, Form, Input, Space, Table, Typography, message } from 'antd';
+import { Button, Descriptions, Drawer, Form, Input, Space, Table, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { createTemplate, listTemplates, updateTemplate } from '../api/client';
 import type { SopTemplate, SopTemplateUpdateRequest } from '../api/types';
@@ -86,25 +86,49 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
       title: '模板 ID',
       dataIndex: 'id',
       key: 'id',
+      width: 100,
     },
     {
       title: '名称',
       dataIndex: 'name',
       key: 'name',
+      width: 180,
+    },
+    {
+      title: '标题提示词',
+      dataIndex: 'titlePrompt',
+      key: 'titlePrompt',
+      render: (value: string) => (
+        <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ marginBottom: 0 }}>
+          {value}
+        </Typography.Paragraph>
+      ),
+    },
+    {
+      title: '主图提示词',
+      dataIndex: 'mainImagePrompt',
+      key: 'mainImagePrompt',
+      render: (value: string) => (
+        <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ marginBottom: 0 }}>
+          {value}
+        </Typography.Paragraph>
+      ),
     },
     {
       title: '更新时间',
       dataIndex: 'gmtModifiedTime',
       key: 'gmtModifiedTime',
       render: formatTime,
+      width: 180,
     },
     {
       title: '操作',
       key: 'actions',
+      width: 150,
       render: (_, template) => (
         <Space>
           <Button type="link" onClick={() => onSelectTemplate(template)}>
-            选择
+            设为当前模板
           </Button>
           <Button type="link" onClick={() => openEditDrawer(template)}>
             编辑
@@ -131,11 +155,32 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
         columns={columns}
         dataSource={templates}
         pagination={false}
+        scroll={{ x: 960 }}
+        expandable={{
+          expandedRowRender: (template) => (
+            <Descriptions bordered size="small" column={1}>
+              <Descriptions.Item label="模板 ID">{template.id}</Descriptions.Item>
+              <Descriptions.Item label="名称">{template.name}</Descriptions.Item>
+              <Descriptions.Item label="标题提示词">
+                <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
+                  {template.titlePrompt}
+                </Typography.Paragraph>
+              </Descriptions.Item>
+              <Descriptions.Item label="主图提示词">
+                <Typography.Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
+                  {template.mainImagePrompt}
+                </Typography.Paragraph>
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间">{formatTime(template.gmtCreateTime)}</Descriptions.Item>
+              <Descriptions.Item label="更新时间">{formatTime(template.gmtModifiedTime)}</Descriptions.Item>
+            </Descriptions>
+          ),
+        }}
       />
 
       <Drawer
         title={editing ? '编辑模板' : '新增模板'}
-        width={520}
+        width={760}
         open={drawerOpen}
         onClose={closeDrawer}
         destroyOnClose
@@ -149,22 +194,22 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
         }
       >
         <Form form={form} layout="vertical" onFinish={saveTemplate}>
-          <Form.Item label="name" name="name" rules={[{ required: true, message: '请输入名称' }]}>
+          <Form.Item label="名称" name="name" rules={[{ required: true, message: '请输入名称' }]}>
             <Input />
           </Form.Item>
           <Form.Item
-            label="titlePrompt"
+            label="标题提示词"
             name="titlePrompt"
             rules={[{ required: true, message: '请输入标题提示词' }]}
           >
-            <Input.TextArea rows={4} />
+            <Input.TextArea rows={10} showCount />
           </Form.Item>
           <Form.Item
-            label="mainImagePrompt"
+            label="主图提示词"
             name="mainImagePrompt"
             rules={[{ required: true, message: '请输入主图提示词' }]}
           >
-            <Input.TextArea rows={4} />
+            <Input.TextArea rows={10} showCount />
           </Form.Item>
         </Form>
       </Drawer>
