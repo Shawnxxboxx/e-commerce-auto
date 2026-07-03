@@ -8,7 +8,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -97,21 +100,57 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
         }
         command.add(prompt);
 
-        log.info("开始执行 Codex AI 生成，素材包: {}", packagePath);
         Path logFile = responseFile.resolveSibling(responseFile.getFileName() + ".log");
+        long startTime = System.currentTimeMillis();
+        log.info("开始执行 Codex AI 生成，素材包: {}", packagePath);
+        log.info("Codex 命令: {}", printableCommand(command));
+        log.info("Codex 响应文件: {}", responseFile);
+        log.info("Codex 日志文件: {}", logFile);
         Process process = new ProcessBuilder(command)
                 .redirectErrorStream(true)
-                .redirectOutput(logFile.toFile())
                 .start();
+        Thread logThread = streamProcessLog(process, logFile);
         boolean finished = process.waitFor(Duration.ofSeconds(timeoutSeconds).toMillis(), TimeUnit.MILLISECONDS);
         if (!finished) {
             process.destroyForcibly();
-            throw new IllegalStateException("Codex 执行超时");
+            logThread.join(1000);
+            throw new IllegalStateException("Codex 执行超时，日志文件: " + logFile);
         }
+        logThread.join(1000);
+        long elapsedMs = System.currentTimeMillis() - startTime;
+        log.info("Codex 执行结束，退出码: {}, 耗时: {}ms", process.exitValue(), elapsedMs);
         if (process.exitValue() != 0) {
             String output = Files.exists(logFile) ? Files.readString(logFile, StandardCharsets.UTF_8) : "";
             throw new IllegalStateException("Codex 退出码 " + process.exitValue() + ": " + output);
         }
+    }
+
+    private Thread streamProcessLog(Process process, Path logFile) {
+        Thread thread = new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+                 PrintWriter writer = new PrintWriter(Files.newBufferedWriter(logFile, StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    writer.println(line);
+                    writer.flush();
+                    log.info("[codex] {}", line);
+                }
+            } catch (IOException e) {
+                log.warn("读取 Codex 日志失败: {}", e.getMessage());
+            }
+        }, "codex-exec-log-reader");
+        thread.setDaemon(true);
+        thread.start();
+        return thread;
+    }
+
+    private String printableCommand(List<String> command) {
+        if (command.isEmpty()) {
+            return "";
+        }
+        List<String> visible = new ArrayList<>(command);
+        visible.set(visible.size() - 1, "<prompt>");
+        return String.join(" ", visible);
     }
 
     private String buildPrompt(SopTemplateEntity template, ProductMaterialPackage material, Path mainImagePath) {
