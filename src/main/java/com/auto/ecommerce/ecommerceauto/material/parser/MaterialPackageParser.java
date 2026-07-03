@@ -45,15 +45,20 @@ public class MaterialPackageParser {
     }
 
     private void fillSizeChartPath(Path packagePath, ProductMaterialPackage material) {
+        Path sizeChartDir = packagePath.resolve(SIZE_CHART_DIR);
+        if (Files.isDirectory(sizeChartDir)) {
+            List<String> sizeChartImages = listImages(sizeChartDir);
+            material.setSizeChartImagePaths(sizeChartImages);
+            if (material.getSizeChartImagePath() == null && !sizeChartImages.isEmpty()) {
+                material.setSizeChartImagePath(sizeChartImages.getFirst());
+            }
+        }
+
         String sizeChartImageName = material.getSizeChartImageName();
         if (sizeChartImageName == null || sizeChartImageName.isBlank()) {
-            Path sizeChartDir = packagePath.resolve(SIZE_CHART_DIR);
-            if (Files.isDirectory(sizeChartDir)) {
-                listImages(sizeChartDir).stream().findFirst().ifPresent(material::setSizeChartImagePath);
-            }
             return;
         }
-        Path sizeChartImagePath = packagePath.resolve(SIZE_CHART_DIR).resolve(sizeChartImageName).normalize();
+        Path sizeChartImagePath = sizeChartDir.resolve(sizeChartImageName).normalize();
         if (!Files.isRegularFile(sizeChartImagePath)) {
             throw new IllegalArgumentException("尺码表图片不存在: " + sizeChartImagePath);
         }

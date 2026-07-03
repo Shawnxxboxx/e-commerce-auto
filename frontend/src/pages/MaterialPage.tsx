@@ -148,7 +148,11 @@ export function MaterialPage({
     }
   };
 
-  const sizeChartPaths = material?.sizeChartImagePath ? [material.sizeChartImagePath] : [];
+  const sizeChartPaths = material?.sizeChartImagePaths?.length
+    ? material.sizeChartImagePaths
+    : material?.sizeChartImagePath
+      ? [material.sizeChartImagePath]
+      : [];
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>

@@ -25,6 +25,7 @@ class MaterialPackageParserTest {
         Files.writeString(packageDir.resolve("副图").resolve("b.jpeg"), "image");
         Files.writeString(packageDir.resolve("副图").resolve("a.jpg"), "image");
         Files.writeString(packageDir.resolve("尺码表").resolve("size.jpg"), "image");
+        Files.writeString(packageDir.resolve("尺码表").resolve("size-2.png"), "image");
         Files.writeString(packageDir.resolve("属性信息.txt"), """
                 [产品信息]
                 产品名称=黑白剪刀
@@ -63,6 +64,11 @@ class MaterialPackageParserTest {
                 );
         assertThat(material.getSizeChartImagePath())
                 .isEqualTo(packageDir.resolve("尺码表").resolve("size.jpg").toAbsolutePath().toString());
+        assertThat(material.getSizeChartImagePaths())
+                .containsExactly(
+                        packageDir.resolve("尺码表").resolve("size-2.png").toAbsolutePath().toString(),
+                        packageDir.resolve("尺码表").resolve("size.jpg").toAbsolutePath().toString()
+                );
     }
 
     @Test

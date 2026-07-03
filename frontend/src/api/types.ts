@@ -35,6 +35,7 @@ export interface ProductMaterialPackage {
   variantAttributes: Record<string, string>;
   sizeChartImageName?: string;
   sizeChartImagePath?: string;
+  sizeChartImagePaths?: string[];
   transactionRows: MaterialTransactionRow[];
   mainImageSourcePaths: string[];
   detailImagePaths: string[];

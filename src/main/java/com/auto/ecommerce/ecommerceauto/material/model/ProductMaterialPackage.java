@@ -19,6 +19,7 @@ public class ProductMaterialPackage {
     private Map<String, String> variantAttributes = new LinkedHashMap<>();
     private String sizeChartImageName;
     private String sizeChartImagePath;
+    private List<String> sizeChartImagePaths = new ArrayList<>();
     private List<MaterialTransactionRow> transactionRows = new ArrayList<>();
     private List<String> mainImageSourcePaths = new ArrayList<>();
     private List<String> detailImagePaths = new ArrayList<>();
