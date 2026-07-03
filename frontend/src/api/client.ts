@@ -86,8 +86,16 @@ export function getListingDraft(draftId: string): Promise<ListingDraftResponse> 
   return request<ListingDraftResponse>(`/api/listing-drafts/${draftId}`);
 }
 
-export function listListingDrafts(page: number, size: number): Promise<ListingDraftPageResponse> {
-  return request<ListingDraftPageResponse>(`/api/listing-drafts?page=${page}&size=${size}`);
+export function listListingDrafts(
+  page: number,
+  size: number,
+  filters: { keyword?: string; status?: string } = {},
+): Promise<ListingDraftPageResponse> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (filters.keyword) params.set('keyword', filters.keyword);
+  if (filters.status) params.set('status', filters.status);
+
+  return request<ListingDraftPageResponse>(`/api/listing-drafts?${params}`);
 }
 
 export function publishListingDraft(draftId: string): Promise<MabangPublishResult> {

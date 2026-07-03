@@ -1,4 +1,4 @@
-import { Alert, Button, Card, Descriptions, Drawer, Empty, Form, Input, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, Card, Descriptions, Drawer, Empty, Form, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { useEffect, useState } from 'react';
 import { getListingDraft, listListingDrafts, publishListingDraft } from '../api/client';
@@ -7,6 +7,11 @@ import { ImagePathPreview } from '../components/ImagePathPreview';
 
 interface DraftReviewPageProps {
   draftId: string | null;
+}
+
+interface DraftSearchValues {
+  keyword?: string;
+  status?: string;
 }
 
 const statusText: Record<string, string> = {
@@ -164,16 +169,18 @@ function DraftDetail({
 }
 
 export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
+  const [form] = Form.useForm<DraftSearchValues>();
   const [records, setRecords] = useState<ListingDraftResponse[]>([]);
   const [selected, setSelected] = useState<ListingDraftResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<DraftSearchValues>({});
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
-  const loadPage = async (page = pagination.current, size = pagination.pageSize) => {
+  const loadPage = async (page = pagination.current, size = pagination.pageSize, nextFilters = filters) => {
     setLoading(true);
     try {
-      const result = await listListingDrafts(page, size);
+      const result = await listListingDrafts(page, size, nextFilters);
       setRecords(result.records);
       setPagination({ current: result.page, pageSize: result.size, total: result.total });
       return result.records;
@@ -203,7 +210,7 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
       result.success ? message.success(result.message || '上架完成') : message.error(result.message || '上架失败');
       const detail = await getListingDraft(nextDraftId);
       setSelected((current) => (current?.draftId === nextDraftId ? detail : current));
-      await loadPage();
+      await loadPage(pagination.current, pagination.pageSize, filters);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '上架失败');
     } finally {
@@ -263,11 +270,48 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
   ];
 
   const handleTableChange = (next: TablePaginationConfig) => {
-    loadPage(next.current ?? 1, next.pageSize ?? 10);
+    loadPage(next.current ?? 1, next.pageSize ?? 10, filters);
+  };
+
+  const searchDrafts = (values: DraftSearchValues) => {
+    const nextFilters = {
+      keyword: values.keyword?.trim(),
+      status: values.status,
+    };
+    setFilters(nextFilters);
+    loadPage(1, pagination.pageSize, nextFilters);
+  };
+
+  const resetSearch = () => {
+    form.resetFields();
+    setFilters({});
+    loadPage(1, pagination.pageSize, {});
   };
 
   return (
     <>
+      <Form form={form} layout="inline" onFinish={searchDrafts} style={{ marginBottom: 16 }}>
+        <Form.Item name="keyword">
+          <Input allowClear placeholder="草稿ID/标题/模板/店铺" style={{ width: 260 }} />
+        </Form.Item>
+        <Form.Item name="status">
+          <Select
+            allowClear
+            placeholder="状态"
+            style={{ width: 160 }}
+            options={Object.entries(statusText).map(([value, label]) => ({ value, label }))}
+          />
+        </Form.Item>
+        <Form.Item>
+          <Space>
+            <Button type="primary" htmlType="submit">
+              查询
+            </Button>
+            <Button onClick={resetSearch}>重置</Button>
+          </Space>
+        </Form.Item>
+      </Form>
+
       <Table
         rowKey="draftId"
         loading={loading}

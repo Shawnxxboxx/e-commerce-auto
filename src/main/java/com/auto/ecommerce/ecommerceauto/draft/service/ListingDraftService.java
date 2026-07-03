@@ -67,21 +67,47 @@ public class ListingDraftService {
         return toResponse(requireEntity(draftId));
     }
 
-    public ListingDraftPageResponse list(int page, int size) {
+    public ListingDraftPageResponse list(int page, int size, String keyword, String status) {
         int safePage = Math.max(page, 1);
         int safeSize = Math.min(Math.max(size, 1), 100);
         List<ListingDraftEntity> all = draftMapper.selectList(new LambdaQueryWrapper<ListingDraftEntity>()
                 .orderByDesc(ListingDraftEntity::getUpdateTime));
-        int from = Math.min((safePage - 1) * safeSize, all.size());
-        int to = Math.min(from + safeSize, all.size());
+        List<ListingDraftResponse> filtered = all.stream()
+                .map(this::toResponse)
+                .filter(response -> matches(response, keyword, status))
+                .toList();
+        int from = Math.min((safePage - 1) * safeSize, filtered.size());
+        int to = Math.min(from + safeSize, filtered.size());
 
         ListingDraftPageResponse response = new ListingDraftPageResponse();
         // ponytail: 本地 MVP 草稿量很小；草稿数量变大时再切 MyBatis-Plus DB 分页。
-        response.setRecords(all.subList(from, to).stream().map(this::toResponse).toList());
-        response.setTotal(all.size());
+        response.setRecords(filtered.subList(from, to));
+        response.setTotal(filtered.size());
         response.setPage(safePage);
         response.setSize(safeSize);
         return response;
+    }
+
+    private boolean matches(ListingDraftResponse response, String keyword, String status) {
+        if (status != null && !status.isBlank() && !status.equalsIgnoreCase(response.getStatus())) {
+            return false;
+        }
+        if (keyword == null || keyword.isBlank()) {
+            return true;
+        }
+        String target = keyword.toLowerCase();
+        ListingDraft draft = response.getDraft();
+        return contains(response.getDraftId(), target)
+                || contains(response.getStatus(), target)
+                || contains(draft.getChineseTitle(), target)
+                || contains(draft.getEnglishTitle(), target)
+                || contains(draft.getTemplateName(), target)
+                || contains(draft.getShopName(), target)
+                || contains(draft.getMaterialPackagePath(), target);
+    }
+
+    private boolean contains(String value, String keyword) {
+        return value != null && value.toLowerCase().contains(keyword);
     }
 
     public MabangPublisher.PublishResult publish(String draftId) {

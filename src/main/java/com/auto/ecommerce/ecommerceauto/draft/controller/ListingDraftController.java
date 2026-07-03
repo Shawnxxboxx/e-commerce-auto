@@ -23,8 +23,10 @@ public class ListingDraftController {
     @GetMapping
     public ListingDraftPageResponse list(
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return service.list(page, size);
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status) {
+        return service.list(page, size, keyword, status);
     }
 
     @GetMapping("/{draftId}")
