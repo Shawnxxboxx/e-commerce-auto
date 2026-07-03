@@ -4,11 +4,6 @@ import type { ColumnsType } from 'antd/es/table';
 import { createTemplate, listTemplates, updateTemplate } from '../api/client';
 import type { SopTemplate, SopTemplateUpdateRequest } from '../api/types';
 
-interface TemplatePageProps {
-  selectedTemplate: SopTemplate | null;
-  onSelectTemplate: (template: SopTemplate) => void;
-}
-
 type TemplateFormValues = Pick<
   SopTemplate,
   'name' | 'titlePrompt' | 'mainImagePrompt'
@@ -18,7 +13,7 @@ function formatTime(value?: string): string {
   return value ? new Date(value).toLocaleString() : '-';
 }
 
-export default function TemplatePage({ selectedTemplate, onSelectTemplate }: TemplatePageProps) {
+export default function TemplatePage() {
   const [templates, setTemplates] = useState<SopTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -62,18 +57,19 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
   const saveTemplate = async (values: TemplateFormValues) => {
     setSaving(true);
     try {
-      const saved = editing
-        ? await updateTemplate(editing.id, {
-            name: values.name,
-            titlePrompt: values.titlePrompt,
-            mainImagePrompt: values.mainImagePrompt,
-          } satisfies SopTemplateUpdateRequest)
-        : await createTemplate(values);
+      if (editing) {
+        await updateTemplate(editing.id, {
+          name: values.name,
+          titlePrompt: values.titlePrompt,
+          mainImagePrompt: values.mainImagePrompt,
+        } satisfies SopTemplateUpdateRequest);
+      } else {
+        await createTemplate(values);
+      }
 
       message.success('模板已保存');
       closeDrawer();
       await refreshTemplates();
-      onSelectTemplate(saved);
     } catch (error) {
       message.error(error instanceof Error ? error.message : '模板保存失败');
     } finally {
@@ -124,30 +120,22 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
     {
       title: '操作',
       key: 'actions',
-      width: 150,
+      width: 90,
       render: (_, template) => (
-        <Space>
-          <Button type="link" onClick={() => onSelectTemplate(template)}>
-            设为当前模板
-          </Button>
-          <Button type="link" onClick={() => openEditDrawer(template)}>
-            编辑
-          </Button>
-        </Space>
+        <Button type="link" onClick={() => openEditDrawer(template)}>
+          编辑
+        </Button>
       ),
     },
   ];
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-        <Typography.Text type="secondary">
-          当前模板：{selectedTemplate?.name ?? '未选择'}
-        </Typography.Text>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <Button type="primary" onClick={openCreateDrawer}>
           新增模板
         </Button>
-      </Space>
+      </div>
 
       <Table
         rowKey="id"
@@ -213,6 +201,6 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
           </Form.Item>
         </Form>
       </Drawer>
-    </Space>
+    </div>
   );
 }

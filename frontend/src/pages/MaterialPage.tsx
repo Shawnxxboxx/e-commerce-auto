@@ -1,12 +1,14 @@
-import { useState } from 'react';
-import { Button, Descriptions, Empty, Form, Input, Space, Table, Tabs, Typography, message } from 'antd';
+import { useEffect, useState } from 'react';
+import { Button, Descriptions, Empty, Form, Input, Select, Space, Table, Tabs, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { parseMaterialPackage } from '../api/client';
-import type { MaterialTransactionRow, ProductMaterialPackage } from '../api/types';
+import { listTemplates, parseMaterialPackage } from '../api/client';
+import type { MaterialTransactionRow, ProductMaterialPackage, SopTemplate } from '../api/types';
 import { ImagePathPreview } from '../components/ImagePathPreview';
 
 interface MaterialPageProps {
   material: ProductMaterialPackage | null;
+  selectedTemplate: SopTemplate | null;
+  onTemplateSelect: (template: SopTemplate | null) => void;
   onMaterialParsed: (material: ProductMaterialPackage) => void;
   onReviewDraft: () => void;
 }
@@ -83,8 +85,24 @@ const transactionColumns: ColumnsType<MaterialTransactionRow> = [
   },
 ];
 
-export function MaterialPage({ material, onMaterialParsed, onReviewDraft }: MaterialPageProps) {
+export function MaterialPage({
+  material,
+  selectedTemplate,
+  onTemplateSelect,
+  onMaterialParsed,
+  onReviewDraft,
+}: MaterialPageProps) {
+  const [templates, setTemplates] = useState<SopTemplate[]>([]);
+  const [templateLoading, setTemplateLoading] = useState(false);
   const [parsing, setParsing] = useState(false);
+
+  useEffect(() => {
+    setTemplateLoading(true);
+    listTemplates()
+      .then(setTemplates)
+      .catch((error) => message.error(error instanceof Error ? error.message : '模板列表加载失败'))
+      .finally(() => setTemplateLoading(false));
+  }, []);
 
   const parseMaterial = async (values: ParseFormValues) => {
     setParsing(true);
@@ -103,6 +121,24 @@ export function MaterialPage({ material, onMaterialParsed, onReviewDraft }: Mate
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        <Typography.Text type="secondary">上架模板</Typography.Text>
+        <Select
+          allowClear
+          showSearch
+          loading={templateLoading}
+          placeholder="请选择 SOP 模板"
+          value={selectedTemplate?.id}
+          optionFilterProp="label"
+          style={{ minWidth: 320 }}
+          options={templates.map((template) => ({
+            value: template.id,
+            label: template.name,
+          }))}
+          onChange={(id) => onTemplateSelect(templates.find((template) => template.id === id) ?? null)}
+        />
+      </Space>
+
       <Form layout="inline" onFinish={parseMaterial}>
         <Form.Item
           name="materialPackagePath"
@@ -117,17 +153,20 @@ export function MaterialPage({ material, onMaterialParsed, onReviewDraft }: Mate
           </Button>
         </Form.Item>
         <Form.Item>
-          <Button onClick={onReviewDraft} disabled={!material}>
+          <Button onClick={onReviewDraft} disabled={!material || !selectedTemplate}>
             进入草稿审核
           </Button>
         </Form.Item>
       </Form>
 
       {!material ? (
-        <Typography.Text type="secondary">请先输入素材包绝对路径并解析素材包。</Typography.Text>
+        <Typography.Text type="secondary">请先选择 SOP 模板，再输入素材包绝对路径并解析素材包。</Typography.Text>
       ) : (
         <>
           <Descriptions bordered column={2} size="small" title="产品信息">
+            <Descriptions.Item label="SOP 模板" span={2}>
+              {selectedTemplate?.name ?? '-'}
+            </Descriptions.Item>
             <Descriptions.Item label="产品名称">{material.productName || '-'}</Descriptions.Item>
             <Descriptions.Item label="店铺">{material.shopName || '-'}</Descriptions.Item>
             <Descriptions.Item label="类目">{material.categoryName || '-'}</Descriptions.Item>

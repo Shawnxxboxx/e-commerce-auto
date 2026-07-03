@@ -13,11 +13,13 @@ export default function App() {
   return (
     <AppShell page={page} onPageChange={setPage}>
       {page === 'templates' && (
-        <TemplatePage selectedTemplate={selectedTemplate} onSelectTemplate={setSelectedTemplate} />
+        <TemplatePage />
       )}
       {page === 'materials' && (
         <MaterialPage
           material={material}
+          selectedTemplate={selectedTemplate}
+          onTemplateSelect={setSelectedTemplate}
           onMaterialParsed={setMaterial}
           onReviewDraft={() => setPage('drafts')}
         />
