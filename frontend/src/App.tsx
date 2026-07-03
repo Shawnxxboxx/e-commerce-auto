@@ -9,6 +9,7 @@ export default function App() {
   const [page, setPage] = useState<AppPageKey>('templates');
   const [selectedTemplate, setSelectedTemplate] = useState<SopTemplate | null>(null);
   const [material, setMaterial] = useState<ProductMaterialPackage | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   return (
     <AppShell page={page} onPageChange={setPage}>
@@ -21,11 +22,14 @@ export default function App() {
           selectedTemplate={selectedTemplate}
           onTemplateSelect={setSelectedTemplate}
           onMaterialParsed={setMaterial}
-          onReviewDraft={() => setPage('drafts')}
+          onDraftStarted={(nextDraftId) => {
+            setDraftId(nextDraftId);
+            setPage('drafts');
+          }}
         />
       )}
       {page === 'drafts' && (
-        <DraftReviewPage template={selectedTemplate} material={material} />
+        <DraftReviewPage draftId={draftId} />
       )}
     </AppShell>
   );

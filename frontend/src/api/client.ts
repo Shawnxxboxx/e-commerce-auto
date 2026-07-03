@@ -1,4 +1,6 @@
 import type {
+  ListingDraftResponse,
+  MabangPublishResult,
   ProductMaterialPackage,
   SopTemplate,
   SopTemplateCreateRequest,
@@ -69,6 +71,23 @@ export function parseMaterialPackage(materialPackagePath: string): Promise<Produ
   return request<ProductMaterialPackage>('/api/material-packages/parse', {
     method: 'POST',
     body: JSON.stringify({ materialPackagePath }),
+  });
+}
+
+export function generateListingDraft(templateId: number, materialPackagePath: string): Promise<ListingDraftResponse> {
+  return request<ListingDraftResponse>('/api/listing-drafts/generate', {
+    method: 'POST',
+    body: JSON.stringify({ templateId, materialPackagePath }),
+  });
+}
+
+export function getListingDraft(draftId: string): Promise<ListingDraftResponse> {
+  return request<ListingDraftResponse>(`/api/listing-drafts/${draftId}`);
+}
+
+export function publishListingDraft(draftId: string): Promise<MabangPublishResult> {
+  return request<MabangPublishResult>(`/api/listing-drafts/${draftId}/publish`, {
+    method: 'POST',
   });
 }
 

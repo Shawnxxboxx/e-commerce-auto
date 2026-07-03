@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Descriptions, Empty, Form, Input, Select, Space, Table, Tabs, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { chooseLocalDirectory, listTemplates, parseMaterialPackage } from '../api/client';
+import { chooseLocalDirectory, generateListingDraft, listTemplates, parseMaterialPackage } from '../api/client';
 import type { MaterialTransactionRow, ProductMaterialPackage, SopTemplate } from '../api/types';
 import { ImagePathPreview } from '../components/ImagePathPreview';
 
@@ -10,7 +10,7 @@ interface MaterialPageProps {
   selectedTemplate: SopTemplate | null;
   onTemplateSelect: (template: SopTemplate | null) => void;
   onMaterialParsed: (material: ProductMaterialPackage) => void;
-  onReviewDraft: () => void;
+  onDraftStarted: (draftId: string) => void;
 }
 
 interface ParseFormValues {
@@ -107,12 +107,13 @@ export function MaterialPage({
   selectedTemplate,
   onTemplateSelect,
   onMaterialParsed,
-  onReviewDraft,
+  onDraftStarted,
 }: MaterialPageProps) {
   const [templates, setTemplates] = useState<SopTemplate[]>([]);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [choosingDirectory, setChoosingDirectory] = useState(false);
   const [parsing, setParsing] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [form] = Form.useForm<ParseFormValues>();
 
   useEffect(() => {
@@ -145,6 +146,23 @@ export function MaterialPage({
       message.error(error instanceof Error ? error.message : '素材包解析失败');
     } finally {
       setParsing(false);
+    }
+  };
+
+  const startAiGeneration = async () => {
+    if (!selectedTemplate || !material?.materialPackagePath) {
+      message.warning('请先选择 SOP 模板并解析素材包');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const draft = await generateListingDraft(selectedTemplate.id, material.materialPackagePath);
+      message.success('AI 生成任务已开始');
+      onDraftStarted(draft.draftId);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'AI 生成任务启动失败');
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -190,11 +208,6 @@ export function MaterialPage({
         <Form.Item>
           <Button type="primary" htmlType="submit" loading={parsing}>
             解析素材包
-          </Button>
-        </Form.Item>
-        <Form.Item>
-          <Button onClick={onReviewDraft} disabled={!material || !selectedTemplate}>
-            进入草稿审核
           </Button>
         </Form.Item>
       </Form>
@@ -265,6 +278,12 @@ export function MaterialPage({
               },
             ]}
           />
+
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Button type="primary" size="large" loading={generating} disabled={!selectedTemplate} onClick={startAiGeneration}>
+              AI生成
+            </Button>
+          </Space>
         </>
       )}
     </Space>

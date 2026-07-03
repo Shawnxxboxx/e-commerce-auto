@@ -1,56 +1,16 @@
-import { Alert, Card, Descriptions, Empty, Form, Input, Space, Table, Typography } from 'antd';
+import { Alert, Button, Card, Descriptions, Empty, Form, Input, Space, Table, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
+import { getListingDraft, publishListingDraft } from '../api/client';
 import type {
+  ListingDraftResponse,
   ListingDraftPreview,
   ListingDraftTransactionRow,
-  ProductMaterialPackage,
-  SopTemplate,
 } from '../api/types';
 import { ImagePathPreview } from '../components/ImagePathPreview';
 
 interface DraftReviewPageProps {
-  template: SopTemplate | null;
-  material: ProductMaterialPackage | null;
-}
-
-function splitVariantValue(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function createDraft(material: ProductMaterialPackage): ListingDraftPreview {
-  return {
-    shopName: material.shopName,
-    categoryName: material.categoryName,
-    sourceUrl: material.sourceUrl,
-    chineseTitle: material.productName,
-    englishTitle: '',
-    brand: material.brand,
-    productMainImage: material.mainImageSourcePaths[0],
-    productSizeChartImage: material.sizeChartImagePath,
-    descriptionImagePaths: material.detailImagePaths,
-    categoryAttributes: material.categoryAttributes,
-    variantAttributes: Object.fromEntries(
-      Object.entries(material.variantAttributes).map(([key, value]) => [key, splitVariantValue(value)]),
-    ),
-    transactionInfo: material.transactionRows.map((row) => ({
-      color: row.color,
-      size: row.specification,
-      stockingMode: row.stockingMode,
-      skc: row.skc,
-      sku: row.sku,
-      price: row.price,
-      stock: row.stock,
-      length: row.length,
-      width: row.width,
-      height: row.height,
-      weightGram: row.weightGram,
-      enabled: true,
-    })),
-  };
+  draftId: string | null;
 }
 
 function validateDraft(draft: ListingDraftPreview): string[] {
@@ -88,61 +48,129 @@ const transactionColumns: ColumnsType<ListingDraftTransactionRow> = [
   { title: '重量g', dataIndex: 'weightGram' },
 ];
 
-export function DraftReviewPage({ template, material }: DraftReviewPageProps) {
-  const draft = useMemo(() => (material ? createDraft(material) : null), [material]);
+const statusText: Record<string, string> = {
+  GENERATING: 'AI生成中',
+  GENERATED: '待人工审核',
+  PUBLISHING: '上架中',
+  PUBLISHED: '已上架',
+  FAILED: '失败',
+};
+
+export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
+  const [response, setResponse] = useState<ListingDraftResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const draft = response?.draft ?? null;
   const errors = draft ? validateDraft(draft) : [];
 
-  if (!draft) {
-    return <Empty description="请先在素材解析页解析一个素材包" />;
-  }
+  const loadDraft = async (id: string) => {
+    const next = await getListingDraft(id);
+    setResponse(next);
+    return next;
+  };
+
+  useEffect(() => {
+    if (!draftId) return;
+    let disposed = false;
+    let timer: number | undefined;
+
+    const poll = async () => {
+      try {
+        setLoading(true);
+        const next = await loadDraft(draftId);
+        if (!disposed && next.status === 'GENERATING') {
+          timer = window.setTimeout(poll, 2000);
+        }
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : '草稿加载失败');
+      } finally {
+        if (!disposed) setLoading(false);
+      }
+    };
+
+    poll();
+    return () => {
+      disposed = true;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [draftId]);
+
+  const publishDraft = async () => {
+    if (!draftId) return;
+    setPublishing(true);
+    try {
+      const result = await publishListingDraft(draftId);
+      if (result.success) {
+        message.success(result.message || '上架完成');
+      } else {
+        message.error(result.message || '上架失败');
+      }
+      await loadDraft(draftId);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '上架失败');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  if (!draftId) return <Empty description="请先在素材解析页点击 AI生成" />;
+  if (!draft) return <Empty description={loading ? '草稿加载中' : '暂无草稿'} />;
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
       <Alert
         showIcon
-        type={errors.length > 0 ? 'warning' : 'success'}
-        message={errors.length > 0 ? '草稿还需要补充信息' : '草稿基础信息完整'}
-        description={errors.length > 0 ? errors.join('；') : '当前草稿可进入后续 AI 生成和人工审核流程。'}
+        type={response?.status === 'FAILED' || errors.length > 0 ? 'warning' : 'success'}
+        message={statusText[response?.status ?? ''] ?? response?.status}
+        description={response?.lastErrorMessage || (errors.length > 0 ? errors.join('；') : '草稿基础信息完整，可人工审核后上架。')}
+        action={
+          <Button
+            type="primary"
+            loading={publishing}
+            disabled={response?.status !== 'GENERATED' || errors.length > 0}
+            onClick={publishDraft}
+          >
+            上架
+          </Button>
+        }
       />
 
       <Card title="模板快照">
-        {template ? (
-          <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="模板 ID">{template.id}</Descriptions.Item>
-            <Descriptions.Item label="模板名称">{template.name}</Descriptions.Item>
-            <Descriptions.Item label="标题提示词" span={2}>
-              {template.titlePrompt}
-            </Descriptions.Item>
-            <Descriptions.Item label="主图提示词" span={2}>
-              {template.mainImagePrompt}
-            </Descriptions.Item>
-          </Descriptions>
-        ) : (
-          <Typography.Text type="secondary">未选择模板，当前仅展示素材草稿壳。</Typography.Text>
-        )}
+        <Descriptions bordered size="small" column={2}>
+          <Descriptions.Item label="草稿 ID">{response?.draftId}</Descriptions.Item>
+          <Descriptions.Item label="状态">{statusText[response?.status ?? ''] ?? response?.status}</Descriptions.Item>
+          <Descriptions.Item label="模板名称">{draft.templateName ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="素材包">{draft.materialPackagePath ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="标题提示词" span={2}>
+            {draft.titlePromptSnapshot ?? '-'}
+          </Descriptions.Item>
+          <Descriptions.Item label="主图提示词" span={2}>
+            {draft.mainImagePromptSnapshot ?? '-'}
+          </Descriptions.Item>
+        </Descriptions>
       </Card>
 
       <Card title="基础信息">
-        <Form key={material?.materialPackagePath || material?.productName} layout="vertical" initialValues={draft}>
+        <Form key={draft.draftId || response?.draftId} layout="vertical" initialValues={draft}>
           <Space style={{ width: '100%' }} size="middle" align="start">
             <Form.Item name="shopName" label="店铺" style={{ flex: 1 }}>
-              <Input />
+              <Input readOnly />
             </Form.Item>
             <Form.Item name="categoryName" label="类目" style={{ flex: 1 }}>
-              <Input />
+              <Input readOnly />
             </Form.Item>
             <Form.Item name="brand" label="品牌" style={{ flex: 1 }}>
-              <Input />
+              <Input readOnly />
             </Form.Item>
           </Space>
           <Form.Item name="sourceUrl" label="来源 URL">
-            <Input />
+            <Input readOnly />
           </Form.Item>
           <Form.Item name="chineseTitle" label="中文标题">
-            <Input />
+            <Input readOnly />
           </Form.Item>
           <Form.Item name="englishTitle" label="英文标题">
-            <Input placeholder="后续由 CodexExec 生成" />
+            <Input readOnly />
           </Form.Item>
         </Form>
       </Card>

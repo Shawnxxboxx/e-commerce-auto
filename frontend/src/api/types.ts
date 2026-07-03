@@ -57,6 +57,12 @@ export interface ListingDraftTransactionRow {
 }
 
 export interface ListingDraftPreview {
+  draftId?: string;
+  templateName?: string;
+  titlePromptSnapshot?: string;
+  mainImagePromptSnapshot?: string;
+  materialPackagePath?: string;
+  status?: ListingDraftStatus;
   shopName: string;
   categoryName: string;
   sourceUrl: string;
@@ -69,4 +75,25 @@ export interface ListingDraftPreview {
   categoryAttributes: Record<string, string>;
   variantAttributes: Record<string, string[]>;
   transactionInfo: ListingDraftTransactionRow[];
+}
+
+export type ListingDraftStatus = 'GENERATING' | 'GENERATED' | 'REVIEWING' | 'APPROVED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
+
+export interface ListingDraftResponse {
+  draftId: string;
+  status: ListingDraftStatus;
+  draft: ListingDraftPreview;
+  lastErrorType?: string;
+  lastErrorMessage?: string;
+  publishScreenshotPath?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
+export interface MabangPublishResult {
+  success: boolean;
+  message: string;
+  finalUrl?: string;
+  elapsedMs: number;
+  screenshotPath?: string;
 }
