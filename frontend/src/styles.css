@@ -57,9 +57,15 @@ body {
   border-radius: 8px;
 }
 
+.image-preview .ant-image,
+.image-preview .ant-image-img,
 .image-preview img {
   width: 100%;
   height: 100%;
   display: block;
   object-fit: cover;
+}
+
+.image-preview .ant-image {
+  cursor: zoom-in;
 }

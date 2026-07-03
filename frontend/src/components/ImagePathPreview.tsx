@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Empty, Typography } from 'antd';
+import { Empty, Image, Typography } from 'antd';
 import { localImageUrl } from '../api/client';
 
 interface ImagePathPreviewProps {
@@ -24,26 +24,33 @@ export function ImagePathPreview({ paths, emptyText = '暂无图片' }: ImagePat
   };
 
   return (
-    <div className="image-grid">
-      {imagePaths.map((path, index) => {
-        const failed = failedPaths.has(path);
+    <Image.PreviewGroup>
+      <div className="image-grid">
+        {imagePaths.map((path, index) => {
+          const failed = failedPaths.has(path);
 
-        return (
-          <div key={`${path}-${index}`}>
-            <div className="image-preview">
-              {failed ? (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="加载失败" />
-              ) : (
-                <img src={localImageUrl(path)} alt={fileName(path)} onError={() => markFailed(path)} />
-              )}
+          return (
+            <div key={`${path}-${index}`}>
+              <div className="image-preview">
+                {failed ? (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="加载失败" />
+                ) : (
+                  <Image
+                    src={localImageUrl(path)}
+                    alt={fileName(path)}
+                    onError={() => markFailed(path)}
+                    preview={{ mask: '点击放大' }}
+                  />
+                )}
+              </div>
+              <Typography.Text type="secondary" ellipsis title={fileName(path)}>
+                {fileName(path)}
+              </Typography.Text>
             </div>
-            <Typography.Text type="secondary" ellipsis title={fileName(path)}>
-              {fileName(path)}
-            </Typography.Text>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </Image.PreviewGroup>
   );
 }
 
