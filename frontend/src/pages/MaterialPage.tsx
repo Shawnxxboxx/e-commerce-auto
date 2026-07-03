@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Button, Descriptions, Empty, Form, Input, Select, Space, Table, Tabs, Typography, message } from 'antd';
+import { Button, Descriptions, Empty, Select, Space, Table, Tabs, Typography, Upload, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { listTemplates, parseMaterialPackage } from '../api/client';
+import type { UploadFile } from 'antd/es/upload/interface';
+import { listTemplates, parseMaterialPackageFiles } from '../api/client';
 import type { MaterialTransactionRow, ProductMaterialPackage, SopTemplate } from '../api/types';
 import { ImagePathPreview } from '../components/ImagePathPreview';
 
@@ -11,10 +12,6 @@ interface MaterialPageProps {
   onTemplateSelect: (template: SopTemplate | null) => void;
   onMaterialParsed: (material: ProductMaterialPackage) => void;
   onReviewDraft: () => void;
-}
-
-interface ParseFormValues {
-  materialPackagePath: string;
 }
 
 function entriesOf(attributes: Record<string, string>) {
@@ -85,6 +82,8 @@ const transactionColumns: ColumnsType<MaterialTransactionRow> = [
   },
 ];
 
+const { Dragger } = Upload;
+
 export function MaterialPage({
   material,
   selectedTemplate,
@@ -94,6 +93,7 @@ export function MaterialPage({
 }: MaterialPageProps) {
   const [templates, setTemplates] = useState<SopTemplate[]>([]);
   const [templateLoading, setTemplateLoading] = useState(false);
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [parsing, setParsing] = useState(false);
 
   useEffect(() => {
@@ -104,10 +104,19 @@ export function MaterialPage({
       .finally(() => setTemplateLoading(false));
   }, []);
 
-  const parseMaterial = async (values: ParseFormValues) => {
+  const parseMaterial = async () => {
+    const files = fileList
+      .map((file) => file.originFileObj)
+      .filter(Boolean)
+      .map((file) => file as File);
+    if (files.length === 0) {
+      message.warning('请先选择素材包目录');
+      return;
+    }
+
     setParsing(true);
     try {
-      const parsed = await parseMaterialPackage(values.materialPackagePath.trim());
+      const parsed = await parseMaterialPackageFiles(files);
       onMaterialParsed(parsed);
       message.success('素材包解析完成');
     } catch (error) {
@@ -139,28 +148,29 @@ export function MaterialPage({
         />
       </Space>
 
-      <Form layout="inline" onFinish={parseMaterial}>
-        <Form.Item
-          name="materialPackagePath"
-          rules={[{ required: true, whitespace: true, message: '请输入素材包绝对路径' }]}
-          style={{ flex: 1 }}
-        >
-          <Input placeholder="素材包绝对路径" />
-        </Form.Item>
-        <Form.Item>
-          <Button type="primary" htmlType="submit" loading={parsing}>
-            解析素材包
-          </Button>
-        </Form.Item>
-        <Form.Item>
-          <Button onClick={onReviewDraft} disabled={!material || !selectedTemplate}>
-            进入草稿审核
-          </Button>
-        </Form.Item>
-      </Form>
+      <Dragger
+        directory
+        multiple
+        fileList={fileList}
+        beforeUpload={() => false}
+        onChange={({ fileList: nextFileList }) => setFileList(nextFileList)}
+      >
+        <Typography.Text>点击或拖入素材包目录</Typography.Text>
+        <br />
+        <Typography.Text type="secondary">目录内需要包含 主图 / 副图 / 尺码表 / 属性信息.txt</Typography.Text>
+      </Dragger>
+
+      <Space>
+        <Button type="primary" loading={parsing} disabled={fileList.length === 0} onClick={parseMaterial}>
+          解析素材包
+        </Button>
+        <Button onClick={onReviewDraft} disabled={!material || !selectedTemplate}>
+          进入草稿审核
+        </Button>
+      </Space>
 
       {!material ? (
-        <Typography.Text type="secondary">请先选择 SOP 模板，再输入素材包绝对路径并解析素材包。</Typography.Text>
+        <Typography.Text type="secondary">请先选择 SOP 模板，再选择本地素材包目录并解析。</Typography.Text>
       ) : (
         <>
           <Descriptions bordered column={2} size="small" title="产品信息">

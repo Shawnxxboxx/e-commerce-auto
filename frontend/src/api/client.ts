@@ -72,6 +72,26 @@ export function parseMaterialPackage(materialPackagePath: string): Promise<Produ
   });
 }
 
+export async function parseMaterialPackageFiles(files: File[]): Promise<ProductMaterialPackage> {
+  const formData = new FormData();
+  for (const file of files) {
+    const fileWithPath = file as File & { webkitRelativePath?: string };
+    formData.append('files', file, fileWithPath.webkitRelativePath || file.name);
+  }
+
+  const response = await fetch('/api/material-packages/parse-upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(errorMessageFromText(text, response.status));
+  }
+
+  return response.json() as Promise<ProductMaterialPackage>;
+}
+
 export function localImageUrl(path: string): string {
   return `/api/local-files/image?path=${encodeURIComponent(path)}`;
 }
