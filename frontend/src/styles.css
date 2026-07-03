@@ -64,8 +64,14 @@ body {
   height: 100%;
   display: block;
   object-fit: cover;
+  transition: transform 160ms ease;
 }
 
 .image-preview .ant-image {
   cursor: zoom-in;
+}
+
+.image-preview:hover .ant-image-img,
+.image-preview:hover img {
+  transform: scale(1.08);
 }
