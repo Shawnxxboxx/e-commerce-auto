@@ -1,6 +1,7 @@
 package com.auto.ecommerce.ecommerceauto.localfile.controller;
 
 import com.auto.ecommerce.ecommerceauto.localfile.service.LocalImageFileService;
+import com.auto.ecommerce.ecommerceauto.localfile.service.LocalDirectoryPickerService;
 import com.auto.ecommerce.ecommerceauto.localfile.service.LocalImageFileService.ImageReadException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class LocalFileControllerTest {
     @BeforeEach
     void setUp() {
         LocalImageFileService service = new LocalImageFileService();
-        mockMvc = MockMvcBuilders.standaloneSetup(new LocalFileController(service)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new LocalFileController(service, new LocalDirectoryPickerService())).build();
     }
 
     @Test
@@ -59,7 +60,7 @@ class LocalFileControllerTest {
                 throw new ImageReadException("读取图片失败: " + rawPath, new IOException("boom"));
             }
         };
-        MockMvc failingMockMvc = MockMvcBuilders.standaloneSetup(new LocalFileController(service)).build();
+        MockMvc failingMockMvc = MockMvcBuilders.standaloneSetup(new LocalFileController(service, new LocalDirectoryPickerService())).build();
 
         failingMockMvc.perform(get("/api/local-files/image").queryParam("path", "/tmp/main.jpg"))
                 .andExpect(status().isInternalServerError());

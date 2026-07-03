@@ -1,6 +1,7 @@
 package com.auto.ecommerce.ecommerceauto.localfile.controller;
 
 import com.auto.ecommerce.ecommerceauto.localfile.service.LocalImageFileService;
+import com.auto.ecommerce.ecommerceauto.localfile.service.LocalDirectoryPickerService;
 import com.auto.ecommerce.ecommerceauto.localfile.service.LocalImageFileService.ImageFileNotFoundException;
 import com.auto.ecommerce.ecommerceauto.localfile.service.LocalImageFileService.ImageReadException;
 import com.auto.ecommerce.ecommerceauto.localfile.service.LocalImageFileService.InvalidImagePathException;
@@ -24,6 +25,7 @@ import java.time.Duration;
 public class LocalFileController {
 
     private final LocalImageFileService localImageFileService;
+    private final LocalDirectoryPickerService localDirectoryPickerService;
 
     @GetMapping("/image")
     public ResponseEntity<byte[]> image(@RequestParam String path) {
@@ -32,6 +34,14 @@ public class LocalFileController {
                 .contentType(MediaType.parseMediaType(image.contentType()))
                 .cacheControl(CacheControl.maxAge(Duration.ofMinutes(5)))
                 .body(image.bytes());
+    }
+
+    @GetMapping("/choose-directory")
+    public DirectorySelection chooseDirectory() {
+        return new DirectorySelection(localDirectoryPickerService.chooseDirectory());
+    }
+
+    public record DirectorySelection(String path) {
     }
 
     @ExceptionHandler(InvalidImagePathException.class)
@@ -47,5 +57,10 @@ public class LocalFileController {
     @ExceptionHandler(ImageReadException.class)
     public ResponseEntity<String> readFailed(ImageReadException exception) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(exception.getMessage());
+    }
+
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class, UnsupportedOperationException.class})
+    public ResponseEntity<String> directoryPickerFailed(RuntimeException exception) {
+        return ResponseEntity.badRequest().body(exception.getMessage());
     }
 }
