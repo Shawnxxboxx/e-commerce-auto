@@ -19,7 +19,7 @@ public class AttributeInfoTextParser {
     private static final String VARIANT_ATTRIBUTES = "变种属性";
     private static final String TRANSACTION_INFO = "交易信息";
     private static final List<String> TRANSACTION_HEADER = List.of(
-            "颜色", "规格", "备货模式", "SKC货号", "SKU货号", "不含税价", "库存", "长", "宽", "高", "重量g"
+            "颜色", "商品货号(SKC)", "备货模式", "尺码", "SKU货号", "不含税价(CNY)", "库存", "长", "宽", "高", "重量(g)"
     );
 
     public ProductMaterialPackage parse(String text) {
@@ -129,16 +129,16 @@ public class AttributeInfoTextParser {
     private MaterialTransactionRow toTransactionRow(List<String> columns, int rowNumber) {
         MaterialTransactionRow row = new MaterialTransactionRow();
         row.setColor(requiredColumn(columns, 0, rowNumber));
-        row.setSpecification(requiredColumn(columns, 1, rowNumber));
+        row.setSkc(requiredColumn(columns, 1, rowNumber));
         row.setStockingMode(requiredColumn(columns, 2, rowNumber));
-        row.setSkc(requiredColumn(columns, 3, rowNumber));
+        row.setSpecification(requiredColumn(columns, 3, rowNumber));
         row.setSku(requiredColumn(columns, 4, rowNumber));
-        row.setPrice(parseDecimal(requiredColumn(columns, 5, rowNumber), "不含税价", rowNumber));
+        row.setPrice(parseDecimal(requiredColumn(columns, 5, rowNumber), "不含税价(CNY)", rowNumber));
         row.setStock(parseInteger(requiredColumn(columns, 6, rowNumber), "库存", rowNumber));
         row.setLength(parseDecimal(requiredColumn(columns, 7, rowNumber), "长", rowNumber));
         row.setWidth(parseDecimal(requiredColumn(columns, 8, rowNumber), "宽", rowNumber));
         row.setHeight(parseDecimal(requiredColumn(columns, 9, rowNumber), "高", rowNumber));
-        row.setWeightGram(parseDecimal(requiredColumn(columns, 10, rowNumber), "重量g", rowNumber));
+        row.setWeightGram(parseDecimal(requiredColumn(columns, 10, rowNumber), "重量(g)", rowNumber));
         return row;
     }
 

@@ -39,11 +39,6 @@ function renderAttributes(attributes: Record<string, string>, emptyText: string)
   );
 }
 
-function formatSize(row: MaterialTransactionRow): string {
-  const values = [row.length, row.width, row.height].filter((value) => value !== undefined && value !== null);
-  return values.length > 0 ? values.join(' x ') : '-';
-}
-
 const transactionColumns: ColumnsType<MaterialTransactionRow> = [
   {
     title: '颜色',
@@ -52,19 +47,31 @@ const transactionColumns: ColumnsType<MaterialTransactionRow> = [
     render: (value: string) => value || '-',
   },
   {
-    title: '规格',
+    title: '商品货号(SKC)',
+    dataIndex: 'skc',
+    key: 'skc',
+    render: (value: string) => value || '-',
+  },
+  {
+    title: '备货模式',
+    dataIndex: 'stockingMode',
+    key: 'stockingMode',
+    render: (value: string) => value || '-',
+  },
+  {
+    title: '尺码',
     dataIndex: 'specification',
     key: 'specification',
     render: (value: string) => value || '-',
   },
   {
-    title: 'SKU',
+    title: 'SKU货号',
     dataIndex: 'sku',
     key: 'sku',
     render: (value: string) => value || '-',
   },
   {
-    title: '价格',
+    title: '不含税价(CNY)',
     dataIndex: 'price',
     key: 'price',
   },
@@ -74,12 +81,22 @@ const transactionColumns: ColumnsType<MaterialTransactionRow> = [
     key: 'stock',
   },
   {
-    title: '尺寸',
-    key: 'size',
-    render: (_, row) => formatSize(row),
+    title: '长',
+    dataIndex: 'length',
+    key: 'length',
   },
   {
-    title: '重量g',
+    title: '宽',
+    dataIndex: 'width',
+    key: 'width',
+  },
+  {
+    title: '高',
+    dataIndex: 'height',
+    key: 'height',
+  },
+  {
+    title: '重量(g)',
     dataIndex: 'weightGram',
     key: 'weightGram',
   },

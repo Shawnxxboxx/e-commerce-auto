@@ -47,6 +47,10 @@ public class MaterialPackageParser {
     private void fillSizeChartPath(Path packagePath, ProductMaterialPackage material) {
         String sizeChartImageName = material.getSizeChartImageName();
         if (sizeChartImageName == null || sizeChartImageName.isBlank()) {
+            Path sizeChartDir = packagePath.resolve(SIZE_CHART_DIR);
+            if (Files.isDirectory(sizeChartDir)) {
+                listImages(sizeChartDir).stream().findFirst().ifPresent(material::setSizeChartImagePath);
+            }
             return;
         }
         Path sizeChartImagePath = packagePath.resolve(SIZE_CHART_DIR).resolve(sizeChartImageName).normalize();

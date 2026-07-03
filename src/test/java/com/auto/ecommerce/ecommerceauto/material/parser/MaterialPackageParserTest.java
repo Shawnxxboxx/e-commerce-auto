@@ -42,8 +42,8 @@ class MaterialPackageParserTest {
                 尺码表图片=size.jpg
 
                 [交易信息]
-                颜色|规格|备货模式|SKC货号|SKU货号|不含税价|库存|长|宽|高|重量g
-                套装1|均码|JIT备货|黑白剪刀|黑白剪刀-套装1-均码|5|999|21|9|2|150
+                颜色|商品货号(SKC)|备货模式|尺码|SKU货号|不含税价(CNY)|库存|长|宽|高|重量(g)
+                套装1|黑白剪刀|JIT备货|均码|黑白剪刀-套装1-均码|5|999|21|9|2|150
                 """);
 
         MaterialPackageParser parser = new MaterialPackageParser(new AttributeInfoTextParser());
@@ -61,6 +61,43 @@ class MaterialPackageParserTest {
                         packageDir.resolve("副图").resolve("a.jpg").toAbsolutePath().toString(),
                         packageDir.resolve("副图").resolve("b.jpeg").toAbsolutePath().toString()
                 );
+        assertThat(material.getSizeChartImagePath())
+                .isEqualTo(packageDir.resolve("尺码表").resolve("size.jpg").toAbsolutePath().toString());
+    }
+
+    @Test
+    void usesFirstSizeChartImageWhenNameIsMissing() throws Exception {
+        Path packageDir = tempDir.resolve("缺省尺码表");
+        Files.createDirectories(packageDir.resolve("主图"));
+        Files.createDirectories(packageDir.resolve("副图"));
+        Files.createDirectories(packageDir.resolve("尺码表"));
+        Files.writeString(packageDir.resolve("主图").resolve("1.jpg"), "image");
+        Files.writeString(packageDir.resolve("副图").resolve("1.jpg"), "image");
+        Files.writeString(packageDir.resolve("尺码表").resolve("size.jpg"), "image");
+        Files.writeString(packageDir.resolve("属性信息.txt"), """
+                [产品信息]
+                产品名称=黑白剪刀
+                来源URL=
+                店铺=xxx店铺
+                类目=家用工具/厨房工具
+                品牌=无品牌
+
+                [分类属性]
+                材质=不锈钢
+
+                [变种属性]
+                颜色=套装1
+                规格=均码
+
+                [交易信息]
+                颜色|商品货号(SKC)|备货模式|尺码|SKU货号|不含税价(CNY)|库存|长|宽|高|重量(g)
+                套装1|黑白剪刀|JIT备货|均码|黑白剪刀-套装1-均码|5|999|21|9|2|150
+                """);
+
+        MaterialPackageParser parser = new MaterialPackageParser(new AttributeInfoTextParser());
+
+        ProductMaterialPackage material = parser.parse(packageDir);
+
         assertThat(material.getSizeChartImagePath())
                 .isEqualTo(packageDir.resolve("尺码表").resolve("size.jpg").toAbsolutePath().toString());
     }

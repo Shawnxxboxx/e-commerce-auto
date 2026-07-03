@@ -34,8 +34,8 @@ class AttributeInfoTextParserTest {
                 尺码表图片=size.jpg
 
                 [交易信息]
-                颜色|规格|备货模式|SKC货号|SKU货号|不含税价|库存|长|宽|高|重量g
-                套装1|均码|JIT备货|黑白剪刀|黑白剪刀-套装1-均码|5.5|999|21|9|2|150
+                颜色|商品货号(SKC)|备货模式|尺码|SKU货号|不含税价(CNY)|库存|长|宽|高|重量(g)
+                套装1|黑白剪刀|JIT备货|均码|黑白剪刀-套装1-均码|5.5|999|21|9|2|150
                 """;
 
         ProductMaterialPackage material = parser.parse(text);
