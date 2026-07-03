@@ -6,12 +6,11 @@ USE `e-commerce`;
 
 CREATE TABLE IF NOT EXISTS sop_template (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
-  template_id VARCHAR(100) NOT NULL UNIQUE,
   name VARCHAR(200) NOT NULL,
   title_prompt TEXT NOT NULL,
   main_image_prompt TEXT NOT NULL,
-  create_time DATETIME NOT NULL,
-  update_time DATETIME NOT NULL
+  gmt_create_time DATETIME NOT NULL,
+  gmt_modified_time DATETIME NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS listing_draft (

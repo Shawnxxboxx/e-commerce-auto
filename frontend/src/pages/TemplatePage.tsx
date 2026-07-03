@@ -11,7 +11,7 @@ interface TemplatePageProps {
 
 type TemplateFormValues = Pick<
   SopTemplate,
-  'templateId' | 'name' | 'titlePrompt' | 'mainImagePrompt'
+  'name' | 'titlePrompt' | 'mainImagePrompt'
 >;
 
 function formatTime(value?: string): string {
@@ -63,7 +63,7 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
     setSaving(true);
     try {
       const saved = editing
-        ? await updateTemplate(editing.templateId, {
+        ? await updateTemplate(editing.id, {
             name: values.name,
             titlePrompt: values.titlePrompt,
             mainImagePrompt: values.mainImagePrompt,
@@ -84,8 +84,8 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
   const columns: ColumnsType<SopTemplate> = [
     {
       title: '模板 ID',
-      dataIndex: 'templateId',
-      key: 'templateId',
+      dataIndex: 'id',
+      key: 'id',
     },
     {
       title: '名称',
@@ -94,8 +94,8 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
     },
     {
       title: '更新时间',
-      dataIndex: 'updateTime',
-      key: 'updateTime',
+      dataIndex: 'gmtModifiedTime',
+      key: 'gmtModifiedTime',
       render: formatTime,
     },
     {
@@ -126,7 +126,7 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
       </Space>
 
       <Table
-        rowKey="templateId"
+        rowKey="id"
         loading={loading}
         columns={columns}
         dataSource={templates}
@@ -149,13 +149,6 @@ export default function TemplatePage({ selectedTemplate, onSelectTemplate }: Tem
         }
       >
         <Form form={form} layout="vertical" onFinish={saveTemplate}>
-          <Form.Item
-            label="templateId"
-            name="templateId"
-            rules={[{ required: true, message: '请输入 templateId' }]}
-          >
-            <Input disabled={Boolean(editing)} />
-          </Form.Item>
           <Form.Item label="name" name="name" rules={[{ required: true, message: '请输入名称' }]}>
             <Input />
           </Form.Item>

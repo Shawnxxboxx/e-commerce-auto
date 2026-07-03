@@ -1,4 +1,9 @@
-import type { ProductMaterialPackage, SopTemplate, SopTemplateUpdateRequest } from './types';
+import type {
+  ProductMaterialPackage,
+  SopTemplate,
+  SopTemplateCreateRequest,
+  SopTemplateUpdateRequest,
+} from './types';
 
 function errorMessageFromText(text: string, status: number): string {
   try {
@@ -41,7 +46,7 @@ export function listTemplates(): Promise<SopTemplate[]> {
   return request<SopTemplate[]>('/api/sop-templates');
 }
 
-export function createTemplate(template: SopTemplate): Promise<SopTemplate> {
+export function createTemplate(template: SopTemplateCreateRequest): Promise<SopTemplate> {
   return request<SopTemplate>('/api/sop-templates', {
     method: 'POST',
     body: JSON.stringify(template),
@@ -49,12 +54,12 @@ export function createTemplate(template: SopTemplate): Promise<SopTemplate> {
 }
 
 export function updateTemplate(
-  templateId: string,
+  id: number,
   template: SopTemplateUpdateRequest,
 ): Promise<SopTemplate> {
   const { name, titlePrompt, mainImagePrompt } = template;
 
-  return request<SopTemplate>(`/api/sop-templates/${encodeURIComponent(templateId)}`, {
+  return request<SopTemplate>(`/api/sop-templates/${id}`, {
     method: 'PUT',
     body: JSON.stringify({ name, titlePrompt, mainImagePrompt }),
   });

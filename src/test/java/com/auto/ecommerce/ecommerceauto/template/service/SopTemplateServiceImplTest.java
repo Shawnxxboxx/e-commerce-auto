@@ -30,18 +30,17 @@ class SopTemplateServiceImplTest {
         SopTemplateServiceImpl service = new SopTemplateServiceImpl(mapper);
 
         SopTemplateCreateRequest request = new SopTemplateCreateRequest();
-        request.setTemplateId("tiktok-fullservice-mabang-v1");
         request.setName("TikTok 全托管马帮模板");
         request.setTitlePrompt("同时生成中文标题和英文标题");
         request.setMainImagePrompt("生成真实清晰主图提示词");
 
         SopTemplateEntity created = service.createTemplate(request);
 
-        assertThat(created.getTemplateId()).isEqualTo("tiktok-fullservice-mabang-v1");
+        assertThat(created.getName()).isEqualTo("TikTok 全托管马帮模板");
         assertThat(created.getTitlePrompt()).contains("中文标题");
         assertThat(created.getMainImagePrompt()).contains("主图");
-        assertThat(created.getCreateTime()).isNotNull();
-        assertThat(created.getUpdateTime()).isNotNull();
+        assertThat(created.getGmtCreateTime()).isNotNull();
+        assertThat(created.getGmtModifiedTime()).isNotNull();
         assertThat(inserted.get()).isSameAs(created);
     }
 }

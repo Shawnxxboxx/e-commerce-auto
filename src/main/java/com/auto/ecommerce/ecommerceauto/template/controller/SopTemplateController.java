@@ -32,8 +32,8 @@ public class SopTemplateController {
         return service.createTemplate(request);
     }
 
-    @PutMapping("/{templateId}")
-    public SopTemplateEntity update(@PathVariable String templateId, @RequestBody SopTemplateUpdateRequest request) {
-        return service.updateTemplate(templateId, request);
+    @PutMapping("/{id}")
+    public SopTemplateEntity update(@PathVariable Long id, @RequestBody SopTemplateUpdateRequest request) {
+        return service.updateTemplate(id, request);
     }
 }

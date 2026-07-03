@@ -108,7 +108,7 @@ export function DraftReviewPage({ template, material }: DraftReviewPageProps) {
       <Card title="模板快照">
         {template ? (
           <Descriptions bordered size="small" column={2}>
-            <Descriptions.Item label="模板 ID">{template.templateId}</Descriptions.Item>
+            <Descriptions.Item label="模板 ID">{template.id}</Descriptions.Item>
             <Descriptions.Item label="模板名称">{template.name}</Descriptions.Item>
             <Descriptions.Item label="标题提示词" span={2}>
               {template.titlePrompt}

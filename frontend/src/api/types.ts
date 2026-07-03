@@ -1,13 +1,13 @@
 export interface SopTemplate {
-  id?: number;
-  templateId: string;
+  id: number;
   name: string;
   titlePrompt: string;
   mainImagePrompt: string;
-  createTime?: string;
-  updateTime?: string;
+  gmtCreateTime?: string;
+  gmtModifiedTime?: string;
 }
 
+export type SopTemplateCreateRequest = Pick<SopTemplate, 'name' | 'titlePrompt' | 'mainImagePrompt'>;
 export type SopTemplateUpdateRequest = Pick<SopTemplate, 'name' | 'titlePrompt' | 'mainImagePrompt'>;
 
 export interface MaterialTransactionRow {

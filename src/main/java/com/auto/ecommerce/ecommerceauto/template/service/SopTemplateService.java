@@ -11,5 +11,5 @@ public interface SopTemplateService {
 
     List<SopTemplateEntity> listTemplates();
 
-    SopTemplateEntity updateTemplate(String templateId, SopTemplateUpdateRequest request);
+    SopTemplateEntity updateTemplate(Long id, SopTemplateUpdateRequest request);
 }
