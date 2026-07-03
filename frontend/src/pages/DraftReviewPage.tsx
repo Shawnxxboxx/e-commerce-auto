@@ -1,17 +1,29 @@
-import { Alert, Button, Card, Descriptions, Empty, Form, Input, Space, Table, Typography, message } from 'antd';
-import type { ColumnsType } from 'antd/es/table';
+import { Alert, Button, Card, Descriptions, Drawer, Empty, Form, Input, Space, Table, Tag, Typography, message } from 'antd';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { useEffect, useState } from 'react';
-import { getListingDraft, publishListingDraft } from '../api/client';
-import type {
-  ListingDraftResponse,
-  ListingDraftPreview,
-  ListingDraftTransactionRow,
-} from '../api/types';
+import { getListingDraft, listListingDrafts, publishListingDraft } from '../api/client';
+import type { ListingDraftPreview, ListingDraftResponse, ListingDraftTransactionRow } from '../api/types';
 import { ImagePathPreview } from '../components/ImagePathPreview';
 
 interface DraftReviewPageProps {
   draftId: string | null;
 }
+
+const statusText: Record<string, string> = {
+  GENERATING: 'AI生成中',
+  GENERATED: '待人工审核',
+  PUBLISHING: '上架中',
+  PUBLISHED: '已上架',
+  FAILED: '失败',
+};
+
+const statusColor: Record<string, string> = {
+  GENERATING: 'processing',
+  GENERATED: 'blue',
+  PUBLISHING: 'processing',
+  PUBLISHED: 'green',
+  FAILED: 'red',
+};
 
 function validateDraft(draft: ListingDraftPreview): string[] {
   const errors: string[] = [];
@@ -20,6 +32,10 @@ function validateDraft(draft: ListingDraftPreview): string[] {
   if (draft.descriptionImagePaths.length === 0) errors.push('缺少描述图');
   if (draft.transactionInfo.length === 0) errors.push('缺少交易信息');
   return errors;
+}
+
+function canPublish(record: ListingDraftResponse) {
+  return record.status === 'GENERATED' && validateDraft(record.draft).length === 0;
 }
 
 function renderAttributes(attributes: Record<string, string | string[]>) {
@@ -48,88 +64,27 @@ const transactionColumns: ColumnsType<ListingDraftTransactionRow> = [
   { title: '重量g', dataIndex: 'weightGram' },
 ];
 
-const statusText: Record<string, string> = {
-  GENERATING: 'AI生成中',
-  GENERATED: '待人工审核',
-  PUBLISHING: '上架中',
-  PUBLISHED: '已上架',
-  FAILED: '失败',
-};
-
-export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
-  const [response, setResponse] = useState<ListingDraftResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const draft = response?.draft ?? null;
-  const errors = draft ? validateDraft(draft) : [];
-
-  const loadDraft = async (id: string) => {
-    const next = await getListingDraft(id);
-    setResponse(next);
-    return next;
-  };
-
-  useEffect(() => {
-    if (!draftId) return;
-    let disposed = false;
-    let timer: number | undefined;
-
-    const poll = async () => {
-      try {
-        setLoading(true);
-        const next = await loadDraft(draftId);
-        if (!disposed && next.status === 'GENERATING') {
-          timer = window.setTimeout(poll, 2000);
-        }
-      } catch (error) {
-        message.error(error instanceof Error ? error.message : '草稿加载失败');
-      } finally {
-        if (!disposed) setLoading(false);
-      }
-    };
-
-    poll();
-    return () => {
-      disposed = true;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [draftId]);
-
-  const publishDraft = async () => {
-    if (!draftId) return;
-    setPublishing(true);
-    try {
-      const result = await publishListingDraft(draftId);
-      if (result.success) {
-        message.success(result.message || '上架完成');
-      } else {
-        message.error(result.message || '上架失败');
-      }
-      await loadDraft(draftId);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '上架失败');
-    } finally {
-      setPublishing(false);
-    }
-  };
-
-  if (!draftId) return <Empty description="请先在素材解析页点击 AI生成" />;
-  if (!draft) return <Empty description={loading ? '草稿加载中' : '暂无草稿'} />;
+function DraftDetail({
+  response,
+  publishing,
+  onPublish,
+}: {
+  response: ListingDraftResponse;
+  publishing: boolean;
+  onPublish: (draftId: string) => void;
+}) {
+  const draft = response.draft;
+  const errors = validateDraft(draft);
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
       <Alert
         showIcon
-        type={response?.status === 'FAILED' || errors.length > 0 ? 'warning' : 'success'}
-        message={statusText[response?.status ?? ''] ?? response?.status}
-        description={response?.lastErrorMessage || (errors.length > 0 ? errors.join('；') : '草稿基础信息完整，可人工审核后上架。')}
+        type={response.status === 'FAILED' || errors.length > 0 ? 'warning' : 'success'}
+        message={statusText[response.status] ?? response.status}
+        description={response.lastErrorMessage || (errors.length > 0 ? errors.join('；') : '草稿基础信息完整，可人工审核后上架。')}
         action={
-          <Button
-            type="primary"
-            loading={publishing}
-            disabled={response?.status !== 'GENERATED' || errors.length > 0}
-            onClick={publishDraft}
-          >
+          <Button type="primary" loading={publishing} disabled={!canPublish(response)} onClick={() => onPublish(response.draftId)}>
             上架
           </Button>
         }
@@ -137,8 +92,8 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
 
       <Card title="模板快照">
         <Descriptions bordered size="small" column={2}>
-          <Descriptions.Item label="草稿 ID">{response?.draftId}</Descriptions.Item>
-          <Descriptions.Item label="状态">{statusText[response?.status ?? ''] ?? response?.status}</Descriptions.Item>
+          <Descriptions.Item label="草稿 ID">{response.draftId}</Descriptions.Item>
+          <Descriptions.Item label="状态">{statusText[response.status] ?? response.status}</Descriptions.Item>
           <Descriptions.Item label="模板名称">{draft.templateName ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="素材包">{draft.materialPackagePath ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="标题提示词" span={2}>
@@ -151,7 +106,7 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
       </Card>
 
       <Card title="基础信息">
-        <Form key={draft.draftId || response?.draftId} layout="vertical" initialValues={draft}>
+        <Form key={draft.draftId || response.draftId} layout="vertical" initialValues={draft}>
           <Space style={{ width: '100%' }} size="middle" align="start">
             <Form.Item name="shopName" label="店铺" style={{ flex: 1 }}>
               <Input readOnly />
@@ -205,6 +160,149 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
         />
       </Card>
     </Space>
+  );
+}
+
+export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
+  const [records, setRecords] = useState<ListingDraftResponse[]>([]);
+  const [selected, setSelected] = useState<ListingDraftResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+
+  const loadPage = async (page = pagination.current, size = pagination.pageSize) => {
+    setLoading(true);
+    try {
+      const result = await listListingDrafts(page, size);
+      setRecords(result.records);
+      setPagination({ current: result.page, pageSize: result.size, total: result.total });
+      return result.records;
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '草稿列表加载失败');
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPage();
+  }, []);
+
+  useEffect(() => {
+    if (!draftId) return;
+    getListingDraft(draftId)
+      .then(setSelected)
+      .catch((error) => message.error(error instanceof Error ? error.message : '草稿加载失败'));
+  }, [draftId]);
+
+  const publishDraft = async (nextDraftId: string) => {
+    setPublishingId(nextDraftId);
+    try {
+      const result = await publishListingDraft(nextDraftId);
+      result.success ? message.success(result.message || '上架完成') : message.error(result.message || '上架失败');
+      const detail = await getListingDraft(nextDraftId);
+      setSelected((current) => (current?.draftId === nextDraftId ? detail : current));
+      await loadPage();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '上架失败');
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const columns: ColumnsType<ListingDraftResponse> = [
+    {
+      title: '草稿',
+      dataIndex: 'draftId',
+      render: (_, record) => (
+        <Space direction="vertical" size={0}>
+          <Typography.Text strong>{record.draft.chineseTitle || record.draftId}</Typography.Text>
+          <Typography.Text type="secondary">{record.draftId}</Typography.Text>
+        </Space>
+      ),
+    },
+    {
+      title: '模板',
+      render: (_, record) => record.draft.templateName || record.draft.templateId || '-',
+    },
+    {
+      title: '店铺',
+      render: (_, record) => record.draft.shopName || '-',
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      render: (status: string) => <Tag color={statusColor[status] ?? 'default'}>{statusText[status] ?? status}</Tag>,
+    },
+    {
+      title: '更新时间',
+      dataIndex: 'updateTime',
+      render: (value: string) => value || '-',
+    },
+    {
+      title: '操作',
+      width: 160,
+      render: (_, record) => (
+        <Space>
+          <Button size="small" onClick={() => setSelected(record)}>
+            详情
+          </Button>
+          <Button
+            size="small"
+            type="primary"
+            loading={publishingId === record.draftId}
+            disabled={!canPublish(record)}
+            onClick={() => publishDraft(record.draftId)}
+          >
+            上架
+          </Button>
+        </Space>
+      ),
+    },
+  ];
+
+  const handleTableChange = (next: TablePaginationConfig) => {
+    loadPage(next.current ?? 1, next.pageSize ?? 10);
+  };
+
+  return (
+    <>
+      <Table
+        rowKey="draftId"
+        loading={loading}
+        columns={columns}
+        dataSource={records}
+        pagination={pagination}
+        onChange={handleTableChange}
+        scroll={{ x: true }}
+      />
+
+      <Drawer
+        width="80%"
+        title="草稿详情"
+        open={!!selected}
+        onClose={() => setSelected(null)}
+        extra={
+          selected ? (
+            <Button
+              type="primary"
+              loading={publishingId === selected.draftId}
+              disabled={!canPublish(selected)}
+              onClick={() => publishDraft(selected.draftId)}
+            >
+              上架
+            </Button>
+          ) : null
+        }
+      >
+        {selected ? (
+          <DraftDetail response={selected} publishing={publishingId === selected.draftId} onPublish={publishDraft} />
+        ) : (
+          <Empty description="请选择草稿" />
+        )}
+      </Drawer>
+    </>
   );
 }
 

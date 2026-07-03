@@ -1,6 +1,7 @@
 package com.auto.ecommerce.ecommerceauto.draft.service;
 
 import com.auto.ecommerce.ecommerceauto.draft.dto.GenerateListingDraftRequest;
+import com.auto.ecommerce.ecommerceauto.draft.dto.ListingDraftPageResponse;
 import com.auto.ecommerce.ecommerceauto.draft.dto.ListingDraftResponse;
 import com.auto.ecommerce.ecommerceauto.draft.entity.ListingDraftEntity;
 import com.auto.ecommerce.ecommerceauto.draft.mapper.ListingDraftMapper;
@@ -64,6 +65,23 @@ public class ListingDraftService {
 
     public ListingDraftResponse get(String draftId) {
         return toResponse(requireEntity(draftId));
+    }
+
+    public ListingDraftPageResponse list(int page, int size) {
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.min(Math.max(size, 1), 100);
+        List<ListingDraftEntity> all = draftMapper.selectList(new LambdaQueryWrapper<ListingDraftEntity>()
+                .orderByDesc(ListingDraftEntity::getUpdateTime));
+        int from = Math.min((safePage - 1) * safeSize, all.size());
+        int to = Math.min(from + safeSize, all.size());
+
+        ListingDraftPageResponse response = new ListingDraftPageResponse();
+        // ponytail: 本地 MVP 草稿量很小；草稿数量变大时再切 MyBatis-Plus DB 分页。
+        response.setRecords(all.subList(from, to).stream().map(this::toResponse).toList());
+        response.setTotal(all.size());
+        response.setPage(safePage);
+        response.setSize(safeSize);
+        return response;
     }
 
     public MabangPublisher.PublishResult publish(String draftId) {

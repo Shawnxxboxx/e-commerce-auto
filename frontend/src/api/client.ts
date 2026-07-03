@@ -1,4 +1,5 @@
 import type {
+  ListingDraftPageResponse,
   ListingDraftResponse,
   MabangPublishResult,
   ProductMaterialPackage,
@@ -83,6 +84,10 @@ export function generateListingDraft(templateId: number, materialPackagePath: st
 
 export function getListingDraft(draftId: string): Promise<ListingDraftResponse> {
   return request<ListingDraftResponse>(`/api/listing-drafts/${draftId}`);
+}
+
+export function listListingDrafts(page: number, size: number): Promise<ListingDraftPageResponse> {
+  return request<ListingDraftPageResponse>(`/api/listing-drafts?page=${page}&size=${size}`);
 }
 
 export function publishListingDraft(draftId: string): Promise<MabangPublishResult> {

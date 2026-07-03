@@ -58,6 +58,7 @@ export interface ListingDraftTransactionRow {
 
 export interface ListingDraftPreview {
   draftId?: string;
+  templateId?: string;
   templateName?: string;
   titlePromptSnapshot?: string;
   mainImagePromptSnapshot?: string;
@@ -88,6 +89,13 @@ export interface ListingDraftResponse {
   publishScreenshotPath?: string;
   createTime?: string;
   updateTime?: string;
+}
+
+export interface ListingDraftPageResponse {
+  records: ListingDraftResponse[];
+  total: number;
+  page: number;
+  size: number;
 }
 
 export interface MabangPublishResult {
