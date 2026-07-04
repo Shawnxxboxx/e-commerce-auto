@@ -117,9 +117,9 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
         log.info("Codex 响应文件: {}", responseFile);
         log.info("Codex 日志文件: {}", logFile);
         Process process = new ProcessBuilder(command)
-                .redirectInput(ProcessBuilder.Redirect.DISCARD)
                 .redirectErrorStream(true)
                 .start();
+        process.getOutputStream().close();
         Thread logThread = streamProcessLog(process, logFile);
         boolean finished = process.waitFor(Duration.ofSeconds(timeoutSeconds).toMillis(), TimeUnit.MILLISECONDS);
         if (!finished) {
