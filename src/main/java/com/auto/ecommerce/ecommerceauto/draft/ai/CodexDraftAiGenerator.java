@@ -48,11 +48,21 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
             Path packagePath = Path.of(material.getMaterialPackagePath());
             Path outputDir = packagePath.resolve("AI生成");
             Files.createDirectories(outputDir);
-            Path responseFile = outputDir.resolve("codex-result-" + System.currentTimeMillis() + ".json");
+            long timestamp = System.currentTimeMillis();
+            Path titleResponseFile = outputDir.resolve("codex-title-" + timestamp + ".json");
+            Path mainImageResponseFile = outputDir.resolve("codex-main-image-" + timestamp + ".json");
             Path mainImagePath = outputDir.resolve("main-" + System.currentTimeMillis() + ".png");
 
-            runCodex(packagePath, responseFile, buildPrompt(template, material, mainImagePath), material.getMainImageSourcePaths());
-            AiDraftGenerationResult result = parseResult(Files.readString(responseFile, StandardCharsets.UTF_8));
+            runCodex("title", packagePath, titleResponseFile, buildTitlePrompt(template, material), List.of());
+            AiDraftGenerationResult titleResult = parseResult(Files.readString(titleResponseFile, StandardCharsets.UTF_8));
+
+            runCodex("main-image", packagePath, mainImageResponseFile, buildMainImagePrompt(template, mainImagePath), material.getMainImageSourcePaths());
+            AiDraftGenerationResult imageResult = parseResult(Files.readString(mainImageResponseFile, StandardCharsets.UTF_8));
+
+            AiDraftGenerationResult result = new AiDraftGenerationResult();
+            result.setChineseTitle(titleResult.getChineseTitle());
+            result.setEnglishTitle(titleResult.getEnglishTitle());
+            result.setMainImagePath(imageResult.getMainImagePath());
             if (result.getMainImagePath() == null || result.getMainImagePath().isBlank()) {
                 result.setMainImagePath(mainImagePath.toString());
             }
@@ -82,7 +92,7 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
         }
     }
 
-    private void runCodex(Path packagePath, Path responseFile, String prompt, List<String> images)
+    private void runCodex(String stage, Path packagePath, Path responseFile, String prompt, List<String> images)
             throws IOException, InterruptedException {
         List<String> command = new ArrayList<>();
         command.add(codexCommand);
@@ -102,7 +112,7 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
 
         Path logFile = responseFile.resolveSibling(responseFile.getFileName() + ".log");
         long startTime = System.currentTimeMillis();
-        log.info("开始执行 Codex AI 生成，素材包: {}", packagePath);
+        log.info("开始执行 Codex AI 生成 [{}]，素材包: {}", stage, packagePath);
         log.info("Codex 命令: {}", printableCommand(command));
         log.info("Codex 响应文件: {}", responseFile);
         log.info("Codex 日志文件: {}", logFile);
@@ -118,7 +128,7 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
         }
         logThread.join(1000);
         long elapsedMs = System.currentTimeMillis() - startTime;
-        log.info("Codex 执行结束，退出码: {}, 耗时: {}ms", process.exitValue(), elapsedMs);
+        log.info("Codex 执行结束 [{}]，退出码: {}, 耗时: {}ms", stage, process.exitValue(), elapsedMs);
         if (process.exitValue() != 0) {
             String output = Files.exists(logFile) ? Files.readString(logFile, StandardCharsets.UTF_8) : "";
             throw new IllegalStateException("Codex 退出码 " + process.exitValue() + ": " + output);
@@ -153,36 +163,34 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
         return String.join(" ", visible);
     }
 
-    private String buildPrompt(SopTemplateEntity template, ProductMaterialPackage material, Path mainImagePath) {
+    String buildTitlePrompt(SopTemplateEntity template, ProductMaterialPackage material) {
         return """
-                你是电商上架助手。请根据素材包信息和 SOP 提示词生成草稿需要的 AI 字段。
+                你是电商上架标题助手。请根据标题提示词和产品名称生成中英文标题。
 
                 标题提示词:
                 %s
 
+                产品名称=%s
+
+                最终回复只输出 JSON，不要解释，不要 Markdown:
+                {"chineseTitle":"中文标题","englishTitle":"English Title"}
+                """.formatted(template.getTitlePrompt(), material.getProductName());
+    }
+
+    String buildMainImagePrompt(SopTemplateEntity template, Path mainImagePath) {
+        return """
+                你是电商商品主图生成助手。主图源图片已通过 --image 附加。
+
                 主图提示词:
                 %s
 
-                产品信息:
-                产品名称=%s
-                店铺=%s
-                类目=%s
-                品牌=%s
-                来源URL=%s
-
-                主图源图片已通过 --image 附加。请结合主图提示词生成最终商品主图，并保存到:
+                请根据主图源图片和主图提示词生成最终商品主图，并保存到:
                 %s
 
                 最终回复只输出 JSON，不要解释，不要 Markdown:
-                {"chineseTitle":"中文标题","englishTitle":"English Title","mainImagePath":"%s"}
+                {"mainImagePath":"%s"}
                 """.formatted(
-                template.getTitlePrompt(),
                 template.getMainImagePrompt(),
-                material.getProductName(),
-                material.getShopName(),
-                material.getCategoryName(),
-                material.getBrand(),
-                material.getSourceUrl(),
                 mainImagePath,
                 mainImagePath);
     }
