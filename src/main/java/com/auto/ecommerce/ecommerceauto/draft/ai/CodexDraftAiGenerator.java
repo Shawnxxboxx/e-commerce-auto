@@ -164,20 +164,9 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
     }
 
     String buildTitlePrompt(SopTemplateEntity template, ProductMaterialPackage material) {
-        String prompt = template.getTitlePrompt();
-        if (prompt.contains("%s")) {
-            prompt = prompt.formatted(material.getProductName());
-        } else {
-            prompt = prompt + "\n\n产品名称=" + material.getProductName();
-        }
-        if (!prompt.contains("chineseTitle") || !prompt.contains("englishTitle")) {
-            prompt += """
-
-                    最终回复只输出 JSON，不要解释，不要 Markdown:
-                    {"chineseTitle":"中文标题","englishTitle":"English Title"}
-                    """;
-        }
-        return prompt;
+        return template.getTitlePrompt().contains("%s")
+                ? template.getTitlePrompt().formatted(material.getProductName())
+                : template.getTitlePrompt();
     }
 
     String buildMainImagePrompt(SopTemplateEntity template, Path mainImagePath) {
