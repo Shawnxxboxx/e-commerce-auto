@@ -71,7 +71,7 @@ class CodexDraftAiGeneratorTest {
     void replacesProductNamePlaceholderInTitlePrompt() {
         CodexDraftAiGenerator generator = new CodexDraftAiGenerator(new ObjectMapper());
         SopTemplateEntity template = new SopTemplateEntity();
-        template.setTitlePrompt("请根据产品名称【%s】生成中英文标题。");
+        template.setTitlePrompt("请根据产品名称【%s】生成中英文标题，不要使用 100%有效。");
         ProductMaterialPackage material = new ProductMaterialPackage();
         material.setProductName("黑色连衣裙");
 
@@ -79,6 +79,20 @@ class CodexDraftAiGeneratorTest {
 
         assertThat(prompt)
                 .contains("产品名称【黑色连衣裙】")
+                .contains("100%有效")
                 .doesNotContain("%s", "产品名称=黑色连衣裙");
+    }
+
+    @Test
+    void replacesImagePathPlaceholderWithoutFormattingPercentText() {
+        CodexDraftAiGenerator generator = new CodexDraftAiGenerator(new ObjectMapper());
+        SopTemplateEntity template = new SopTemplateEntity();
+        template.setMainImagePrompt("商品占画面约 70%–85%，保存到 %s，返回 %s。");
+
+        String prompt = generator.buildMainImagePrompt(template, Path.of("/tmp/main.png"));
+
+        assertThat(prompt)
+                .contains("70%–85%", "/tmp/main.png")
+                .doesNotContain("%s");
     }
 }

@@ -165,13 +165,13 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
 
     String buildTitlePrompt(SopTemplateEntity template, ProductMaterialPackage material) {
         return template.getTitlePrompt().contains("%s")
-                ? template.getTitlePrompt().formatted(material.getProductName())
+                ? template.getTitlePrompt().replace("%s", material.getProductName())
                 : template.getTitlePrompt();
     }
 
     String buildMainImagePrompt(SopTemplateEntity template, Path mainImagePath) {
         return template.getMainImagePrompt().contains("%s")
-                ? template.getMainImagePrompt().formatted(mainImagePath, mainImagePath)
+                ? template.getMainImagePrompt().replace("%s", mainImagePath.toString())
                 : template.getMainImagePrompt();
     }
 }
