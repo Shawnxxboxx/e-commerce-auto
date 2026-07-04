@@ -32,7 +32,7 @@ class CodexDraftAiGeneratorTest {
         CodexDraftAiGenerator generator = new CodexDraftAiGenerator(new ObjectMapper());
         SopTemplateEntity template = new SopTemplateEntity();
         template.setTitlePrompt("生成适合 TikTok 的中英文标题，产品【%s】");
-        template.setMainImagePrompt("生成白底商品主图");
+        template.setMainImagePrompt("生成白底商品主图，保存到 %s，返回 %s");
         ProductMaterialPackage material = new ProductMaterialPackage();
         material.setProductName("黑色连衣裙");
 
@@ -45,6 +45,15 @@ class CodexDraftAiGeneratorTest {
         assertThat(imagePrompt)
                 .contains("生成白底商品主图", "/tmp/main.png")
                 .doesNotContain("生成适合 TikTok 的中英文标题", "黑色连衣裙");
+    }
+
+    @Test
+    void keepsMainImagePromptAsTemplateWhenNoPlaceholder() {
+        CodexDraftAiGenerator generator = new CodexDraftAiGenerator(new ObjectMapper());
+        SopTemplateEntity template = new SopTemplateEntity();
+        template.setMainImagePrompt("完全由主图模板决定输出。");
+
+        assertThat(generator.buildMainImagePrompt(template, Path.of("/tmp/main.png"))).isEqualTo("完全由主图模板决定输出。");
     }
 
     @Test

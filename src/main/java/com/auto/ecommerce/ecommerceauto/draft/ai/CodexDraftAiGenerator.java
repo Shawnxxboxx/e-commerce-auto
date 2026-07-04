@@ -170,20 +170,8 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
     }
 
     String buildMainImagePrompt(SopTemplateEntity template, Path mainImagePath) {
-        return """
-                你是电商商品主图生成助手。主图源图片已通过 --image 附加。
-
-                主图提示词:
-                %s
-
-                请根据主图源图片和主图提示词生成最终商品主图，并保存到:
-                %s
-
-                最终回复只输出 JSON，不要解释，不要 Markdown:
-                {"mainImagePath":"%s"}
-                """.formatted(
-                template.getMainImagePrompt(),
-                mainImagePath,
-                mainImagePath);
+        return template.getMainImagePrompt().contains("%s")
+                ? template.getMainImagePrompt().formatted(mainImagePath, mainImagePath)
+                : template.getMainImagePrompt();
     }
 }
