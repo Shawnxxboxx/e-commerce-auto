@@ -164,17 +164,20 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
     }
 
     String buildTitlePrompt(SopTemplateEntity template, ProductMaterialPackage material) {
-        return """
-                你是电商上架标题助手。请根据标题提示词和产品名称生成中英文标题。
+        String prompt = template.getTitlePrompt();
+        if (prompt.contains("%s")) {
+            prompt = prompt.formatted(material.getProductName());
+        } else {
+            prompt = prompt + "\n\n产品名称=" + material.getProductName();
+        }
+        if (!prompt.contains("chineseTitle") || !prompt.contains("englishTitle")) {
+            prompt += """
 
-                标题提示词:
-                %s
-
-                产品名称=%s
-
-                最终回复只输出 JSON，不要解释，不要 Markdown:
-                {"chineseTitle":"中文标题","englishTitle":"English Title"}
-                """.formatted(template.getTitlePrompt(), material.getProductName());
+                    最终回复只输出 JSON，不要解释，不要 Markdown:
+                    {"chineseTitle":"中文标题","englishTitle":"English Title"}
+                    """;
+        }
+        return prompt;
     }
 
     String buildMainImagePrompt(SopTemplateEntity template, Path mainImagePath) {

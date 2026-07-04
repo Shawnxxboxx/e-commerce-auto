@@ -46,4 +46,19 @@ class CodexDraftAiGeneratorTest {
                 .contains("生成白底商品主图", "/tmp/main.png")
                 .doesNotContain("生成适合 TikTok 的中英文标题", "黑色连衣裙");
     }
+
+    @Test
+    void replacesProductNamePlaceholderInTitlePrompt() {
+        CodexDraftAiGenerator generator = new CodexDraftAiGenerator(new ObjectMapper());
+        SopTemplateEntity template = new SopTemplateEntity();
+        template.setTitlePrompt("请根据产品名称【%s】生成中英文标题。");
+        ProductMaterialPackage material = new ProductMaterialPackage();
+        material.setProductName("黑色连衣裙");
+
+        String prompt = generator.buildTitlePrompt(template, material);
+
+        assertThat(prompt)
+                .contains("产品名称【黑色连衣裙】")
+                .doesNotContain("%s", "产品名称=黑色连衣裙");
+    }
 }
