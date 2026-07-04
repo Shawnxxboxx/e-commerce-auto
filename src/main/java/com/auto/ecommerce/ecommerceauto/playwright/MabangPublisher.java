@@ -2,6 +2,7 @@ package com.auto.ecommerce.ecommerceauto.playwright;
 
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.AriaRole;
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -66,8 +67,21 @@ public class MabangPublisher {
     }
 
     /**
+     * 连接已开启远程调试端口的 Chrome，复用用户登录态。
+     */
+    public synchronized void initWithCdp() {
+        if (browser != null) return;
+        log.info("正在连接 Chrome CDP: {}", properties.getCdpUrl());
+        playwright = Playwright.create();
+        browser = playwright.chromium().connectOverCDP(properties.getCdpUrl());
+        ownsBrowser = true;
+        log.info("已连接 Chrome CDP (版本: {})", browser.version());
+    }
+
+    /**
      * 释放资源（仅 ownsBrowser=true 时关闭浏览器）
      */
+    @PreDestroy
     public void destroy() {
         if (ownsBrowser) {
             if (browser != null) {
@@ -95,11 +109,19 @@ public class MabangPublisher {
         long startTime = System.currentTimeMillis();
 
         if (browser == null) {
-            return PublishResult.failure("浏览器未初始化，请先调用 initWithBrowser()", 0, null);
+            try {
+                initWithCdp();
+            } catch (Exception e) {
+                log.error("连接 Chrome CDP 失败", e);
+                return PublishResult.failure("浏览器初始化失败，请确认 Chrome 已用 --remote-debugging-port="
+                        + properties.getPort() + " 启动: " + e.getMessage(), 0, null);
+            }
         }
 
         try {
-            BrowserContext context = browser.contexts().get(0);
+            BrowserContext context = browser.contexts().isEmpty()
+                    ? browser.newContext()
+                    : browser.contexts().get(0);
 
             // 在已有标签页中查找马帮页面
             Page page = null;
