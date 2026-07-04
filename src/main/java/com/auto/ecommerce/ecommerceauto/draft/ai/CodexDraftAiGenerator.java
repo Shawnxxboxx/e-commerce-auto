@@ -155,12 +155,7 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
     }
 
     private String printableCommand(List<String> command) {
-        if (command.isEmpty()) {
-            return "";
-        }
-        List<String> visible = new ArrayList<>(command);
-        visible.set(visible.size() - 1, "<prompt>");
-        return String.join(" ", visible);
+        return String.join(" ", command);
     }
 
     String buildTitlePrompt(SopTemplateEntity template, ProductMaterialPackage material) {
