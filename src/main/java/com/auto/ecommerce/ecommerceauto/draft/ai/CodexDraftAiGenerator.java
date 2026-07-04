@@ -94,21 +94,7 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
 
     private void runCodex(String stage, Path packagePath, Path responseFile, String prompt, List<String> images)
             throws IOException, InterruptedException {
-        List<String> command = new ArrayList<>();
-        command.add(codexCommand);
-        command.add("exec");
-        command.add("--cd");
-        command.add(packagePath.toString());
-        command.add("--skip-git-repo-check");
-        command.add("--sandbox");
-        command.add("workspace-write");
-        command.add("-o");
-        command.add(responseFile.toString());
-        for (String image : images == null ? List.<String>of() : images) {
-            command.add("--image");
-            command.add(image);
-        }
-        command.add(prompt);
+        List<String> command = buildCodexCommand(packagePath, responseFile, prompt, images);
 
         Path logFile = responseFile.resolveSibling(responseFile.getFileName() + ".log");
         long startTime = System.currentTimeMillis();
@@ -134,6 +120,27 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
             String output = Files.exists(logFile) ? Files.readString(logFile, StandardCharsets.UTF_8) : "";
             throw new IllegalStateException("Codex 退出码 " + process.exitValue() + ": " + output);
         }
+    }
+
+    List<String> buildCodexCommand(Path packagePath, Path responseFile, String prompt, List<String> images) {
+        List<String> command = new ArrayList<>();
+        command.add(codexCommand);
+        command.add("exec");
+        command.add("--cd");
+        command.add(packagePath.toString());
+        command.add("--skip-git-repo-check");
+        command.add("--sandbox");
+        command.add("workspace-write");
+        command.add("-o");
+        command.add(responseFile.toString());
+        for (String image : images == null ? List.<String>of() : images) {
+            command.add("--image");
+            command.add(image);
+        }
+        // --image 支持接收多个文件；用 -- 明确结束图片参数，避免 prompt 被当成图片路径。
+        command.add("--");
+        command.add(prompt);
+        return command;
     }
 
     private Thread streamProcessLog(Process process, Path logFile) {

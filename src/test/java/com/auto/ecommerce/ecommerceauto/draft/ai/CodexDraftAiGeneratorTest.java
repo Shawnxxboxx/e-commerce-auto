@@ -6,6 +6,7 @@ import com.auto.ecommerce.ecommerceauto.template.entity.SopTemplateEntity;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -94,5 +95,18 @@ class CodexDraftAiGeneratorTest {
         assertThat(prompt)
                 .contains("70%–85%", "/tmp/main.png")
                 .doesNotContain("%s");
+    }
+
+    @Test
+    void separatesPromptFromImageArguments() {
+        CodexDraftAiGenerator generator = new CodexDraftAiGenerator(new ObjectMapper());
+
+        List<String> command = generator.buildCodexCommand(
+                Path.of("/tmp/pkg"),
+                Path.of("/tmp/pkg/AI生成/result.json"),
+                "生成主图",
+                List.of("/tmp/pkg/主图/a.jpg"));
+
+        assertThat(command).containsSubsequence("--image", "/tmp/pkg/主图/a.jpg", "--", "生成主图");
     }
 }
