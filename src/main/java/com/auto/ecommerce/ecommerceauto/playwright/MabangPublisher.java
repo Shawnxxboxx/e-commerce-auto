@@ -730,51 +730,32 @@ public class MabangPublisher {
     /**
      * 上传产品图（首图、细节图）
      * <p>
-     * 产品图区域有 3 个槽位，各有一个「选择图片」按钮 → 弹出菜单 → "本地图片" → input[type=file]。
-     * 与描述图类似，input[type=file] 始终在 DOM 中但被隐藏，setInputFiles 可直接触发。
-     * 按各槽位下方的文本标签（首图/细节图）定位对应 input。
+     * 页面按上传顺序填充槽位：首图 → 尺寸图 → 细节图...，所以直接按 productMainImage + productDetailImages 上传。
      */
     private void uploadProductImages(FrameLocator frame, TikTokPublishRequest request) {
-        // 上传首图
-        if (request.getProductMainImage() != null) {
-            log.debug("上传首图: {}", request.getProductMainImage());
-            uploadToSlot(frame, "首图", request.getProductMainImage());
+        List<String> imagePaths = productImages(request);
+        if (imagePaths.isEmpty()) {
+            return;
         }
-
-        // 上传细节图
-        if (request.getProductDetailImages() != null && !request.getProductDetailImages().isEmpty()) {
-            log.debug("上传 {} 张细节图（一次性传入防止覆盖）", request.getProductDetailImages().size());
-            uploadAllToSlot(frame, "细节图", request.getProductDetailImages());
-        }
-    }
-
-    /**
-     * 上传单张图片到指定产品图槽位
-     */
-    private void uploadToSlot(FrameLocator frame, String slotLabel, String imagePath) {
-        // 按槽位文本找到对应的 .draggable-box，再取其内 input[type=file]
-        Locator fileInput = frame.locator(".draggable-box")
-                .filter(new Locator.FilterOptions().setHasText(slotLabel))
-                .locator("input[type='file']").first();
-        fileInput.setInputFiles(Paths.get(imagePath));
-        log.debug("已选择 {} 到槽位 [{}]", imagePath, slotLabel);
-        pageWait(2000); // 等待单张上传
-    }
-
-    /**
-     * 一次性上传多张图片到同一个槽位（避免循环 setInputFiles 导致覆盖）
-     */
-    private void uploadAllToSlot(FrameLocator frame, String slotLabel, List<String> imagePaths) {
-        Locator fileInput = frame.locator(".draggable-box")
-                .filter(new Locator.FilterOptions().setHasText(slotLabel))
-                .locator("input[type='file']").first();
+        Locator fileInput = frame.locator("#box3 input[type='file']").first();
         fileInput.setInputFiles(
                 imagePaths.stream()
                         .map(Paths::get)
                         .toArray(java.nio.file.Path[]::new)
         );
-        log.debug("已选择 {} 张图片到槽位 [{}]", imagePaths.size(), slotLabel);
+        log.debug("已按顺序上传 {} 张产品图: {}", imagePaths.size(), imagePaths);
         pageWait(3000); // 等待上传
+    }
+
+    private List<String> productImages(TikTokPublishRequest request) {
+        List<String> images = new ArrayList<>();
+        if (request.getProductMainImage() != null && !request.getProductMainImage().isBlank()) {
+            images.add(request.getProductMainImage());
+        }
+        if (request.getProductDetailImages() != null) {
+            images.addAll(request.getProductDetailImages());
+        }
+        return images;
     }
 
     /**
