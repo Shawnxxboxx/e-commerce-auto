@@ -36,6 +36,10 @@ public class MabangPublisher {
     /** iframe 选择器 */
     private static final String IFRAME_SELECTOR = "#iframeContent";
 
+    /** TikTok Shop 刊登列表入口 */
+    private static final String DEFAULT_PUBLISH_ENTRY_URL =
+            "https://www.mabangerp.com/index.php?mod=main.gotoApp&v=v3&menuKey=M001089961&platform=tiktokshop&version=1";
+
     /** 素材图片资源目录（相对于项目根目录） */
     private static final String RESOURCE_IMAGE_DIR = "src/main/resources/templates/素材/";
 
@@ -136,13 +140,11 @@ public class MabangPublisher {
             if (page == null) {
                 log.info("未在当前 Chrome 中检测到马帮页面，正在新建标签页...");
                 page = context.newPage();
-                String targetUrl = request.getUrl() != null ? request.getUrl() :
-                        "https://www.mabangerp.com/index.php?mod=main.goPublish&url=aHR0cHM6Ly9wdWJsaXNoLm1hYmFuZ2VycC5jb20vcHVibGlzaC11aS8jL3Rpa3Rva0Z1bGxTZXJ2aWNlRGV0YWlsP2NLZXk9TUFCQU5HX0VSUF9QUklWQVRFX0xPR0lOXzQxNDU3Ml83MzU2MzFfUFVCTElTSA==";
-                navigateWithRetry(page, targetUrl);
             }
+            page = openPublishForm(context, page, request);
 
             // 定位 iframe
-            FrameLocator formFrame = page.frameLocator("iframe[src*='publish']");
+            FrameLocator formFrame = page.frameLocator("iframe[src*='publish'], iframe#iframeContent");
 
             log.info("正在等待子框架内的表单元素加载...");
             formFrame.locator("#box1").waitFor();
@@ -263,6 +265,57 @@ public class MabangPublisher {
             log.error("刊登失败 (耗时 {}ms)", elapsed, e);
             return PublishResult.failure("刊登失败: " + e.getMessage(), elapsed, null);
         }
+    }
+
+    /**
+     * 从刊登列表入口点击"新增刊登"，进入具体表单页。
+     */
+    private Page openPublishForm(BrowserContext context, Page page, TikTokPublishRequest request) {
+        String entryUrl = request.getUrl() != null && !request.getUrl().isBlank()
+                ? request.getUrl()
+                : DEFAULT_PUBLISH_ENTRY_URL;
+        log.info("打开马帮 TikTok 刊登入口页: {}", entryUrl);
+        page.setDefaultTimeout(properties.getTimeoutMs());
+        navigateWithRetry(page, entryUrl);
+        pageWait(3000);
+
+        clickAddListing(page);
+        pageWait(3000);
+        return latestMabangPage(context, page);
+    }
+
+    private void clickAddListing(Page page) {
+        Exception last = null;
+        List<Locator> candidates = List.of(
+                page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("新增刊登")),
+                page.getByText("新增刊登"),
+                page.frameLocator(IFRAME_SELECTOR).getByRole(AriaRole.BUTTON,
+                        new FrameLocator.GetByRoleOptions().setName("新增刊登")),
+                page.frameLocator(IFRAME_SELECTOR).getByText("新增刊登")
+        );
+        for (Locator candidate : candidates) {
+            try {
+                Locator target = candidate.first();
+                target.waitFor(new Locator.WaitForOptions().setTimeout(5000));
+                target.click();
+                log.info("已点击新增刊登");
+                return;
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        throw new RuntimeException("未找到新增刊登按钮" + (last != null ? ": " + last.getMessage() : ""));
+    }
+
+    private Page latestMabangPage(BrowserContext context, Page fallback) {
+        List<Page> pages = context.pages();
+        for (int i = pages.size() - 1; i >= 0; i--) {
+            Page candidate = pages.get(i);
+            if (candidate.url().contains("mabangerp.com")) {
+                return candidate;
+            }
+        }
+        return fallback;
     }
 
     // ========== 🩺 诊断 ==========
