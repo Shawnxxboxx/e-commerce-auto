@@ -482,7 +482,7 @@ public class MabangPublisher {
         for (String lvl : levels) {
             String level = lvl.trim();
             if (level.isEmpty()) continue;
-            Locator item = frame.locator("label.el-transfer-panel-item")
+            Locator item = frame.locator("label.el-transfer-panel-item:visible")
                     .filter(new Locator.FilterOptions().setHasText(level))
                     .first();
             try {
@@ -504,8 +504,8 @@ public class MabangPublisher {
                 } catch (Exception ignored) {
                     visibleItems = List.of();
                 }
-                log.warn("类目层级 '{}' 未找到，停留在 '{}'（完整路径: {}）。当前弹窗可见类目项: {}",
-                        level, selected, categoryName, visibleItems);
+                log.warn("类目层级 '{}' 未找到，停留在 '{}'（完整路径: {}）。当前弹窗可见类目项: {}。原因: {}",
+                        level, selected, categoryName, visibleItems, e.getMessage());
                 break;
             }
         }
