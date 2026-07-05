@@ -11,6 +11,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 马帮 ERP — TikTok 全托管刊登自动化服务。
@@ -664,13 +666,12 @@ public class MabangPublisher {
         if (slotCount == 0) {
             throw new RuntimeException("未找到产品图上传槽位 .draggable-box input[type='file']");
         }
-        int uploadCount = (int) Math.min(imagePaths.size(), slotCount);
-        for (int i = 0; i < uploadCount; i++) {
+        for (int i = 0; i < imagePaths.size(); i++) {
             fileInputs.nth(i).setInputFiles(Paths.get(imagePaths.get(i)));
             pageWait(1000);
         }
-        log.debug("已按顺序上传 {} 张产品图: {}", uploadCount, imagePaths);
-        pageWait(3000); // 等待上传
+        int uploaded = waitForProductImageCount(frame, imagePaths.size());
+        log.info("已按顺序上传 {} 张产品图: {}", uploaded, imagePaths);
     }
 
     List<String> productImages(TikTokPublishRequest request) {
@@ -682,6 +683,25 @@ public class MabangPublisher {
             images.addAll(request.getProductDetailImages());
         }
         return images;
+    }
+
+    private int waitForProductImageCount(FrameLocator frame, int expected) {
+        long deadline = System.currentTimeMillis() + properties.getTimeoutMs();
+        int count = 0;
+        while (System.currentTimeMillis() < deadline) {
+            count = productImageCount(frame);
+            if (count >= expected) {
+                return count;
+            }
+            pageWait(1000);
+        }
+        throw new RuntimeException("产品图上传数量不一致，期望 " + expected + " 张，页面实际 " + count + " 张");
+    }
+
+    private int productImageCount(FrameLocator frame) {
+        String text = frame.locator("body").innerText();
+        Matcher matcher = Pattern.compile("已上传\\s*(\\d+)\\s*张").matcher(text);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
     }
 
     /**
