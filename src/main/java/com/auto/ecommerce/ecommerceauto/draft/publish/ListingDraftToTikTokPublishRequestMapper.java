@@ -21,7 +21,6 @@ public class ListingDraftToTikTokPublishRequestMapper {
                 .brand(draft.getBrand())
                 .picSetType(draft.getPicSetType())
                 .productMainImage(draft.getProductMainImage())
-                .productSizeChartImage(draft.getProductSizeChartImage())
                 .productDetailImages(draft.getProductDetailImages())
                 .descriptionImagePaths(draft.getDescriptionImagePaths())
                 .variantAttributes(draft.getVariantAttributes())

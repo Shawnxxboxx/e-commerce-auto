@@ -182,9 +182,8 @@ public class MabangPublisher {
                 selectPicSetType(formFrame, request.getPicSetType());
             }
 
-            // 5b. 上传产品图（首图、尺寸图、细节图）
+            // 5b. 上传产品图（首图、细节图）
             if (request.getProductMainImage() != null
-                    || request.getProductSizeChartImage() != null
                     || (request.getProductDetailImages() != null && !request.getProductDetailImages().isEmpty())) {
                 uploadProductImages(formFrame, request);
             }
@@ -729,23 +728,17 @@ public class MabangPublisher {
     }
 
     /**
-     * 上传产品图（首图、尺寸图、细节图）
+     * 上传产品图（首图、细节图）
      * <p>
      * 产品图区域有 3 个槽位，各有一个「选择图片」按钮 → 弹出菜单 → "本地图片" → input[type=file]。
      * 与描述图类似，input[type=file] 始终在 DOM 中但被隐藏，setInputFiles 可直接触发。
-     * 按各槽位下方的文本标签（首图/尺寸图/细节图）定位对应 input。
+     * 按各槽位下方的文本标签（首图/细节图）定位对应 input。
      */
     private void uploadProductImages(FrameLocator frame, TikTokPublishRequest request) {
         // 上传首图
         if (request.getProductMainImage() != null) {
             log.debug("上传首图: {}", request.getProductMainImage());
             uploadToSlot(frame, "首图", request.getProductMainImage());
-        }
-
-        // 上传尺寸图
-        if (request.getProductSizeChartImage() != null) {
-            log.debug("上传尺寸图: {}", request.getProductSizeChartImage());
-            uploadToSlot(frame, "尺寸图", request.getProductSizeChartImage());
         }
 
         // 上传细节图

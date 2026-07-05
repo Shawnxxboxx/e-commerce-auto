@@ -22,6 +22,7 @@ class ListingDraftToTikTokPublishRequestMapperTest {
         assertThat(request.getChineseTitle()).isEqualTo("黑白剪刀家用厨房剪");
         assertThat(request.getEnglishTitle()).isEqualTo("Black White Kitchen Scissors");
         assertThat(request.getProductMainImage()).endsWith("generated.png");
+        assertThat(request.getProductSizeChartImage()).isNull();
         assertThat(request.getDescriptionImagePaths()).hasSize(1);
         assertThat(request.getVariantAttributes()).containsKey("颜色");
         assertThat(request.getTransactionInfo()).hasSize(1);
