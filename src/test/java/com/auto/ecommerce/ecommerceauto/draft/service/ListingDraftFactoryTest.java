@@ -47,6 +47,7 @@ class ListingDraftFactoryTest {
         material.setBrand("无品牌");
         material.setCategoryAttributes(Map.of("材质", "棉"));
         material.setVariantAttributes(Map.of("颜色", "黑色,白色"));
+        material.setSizeChartImagePath("/tmp/pkg/尺码表/b.jpg");
         material.setSizeChartImagePaths(List.of("/tmp/pkg/尺码表/a.jpg", "/tmp/pkg/尺码表/b.jpg"));
         material.setDetailImagePaths(List.of("/tmp/pkg/副图/1.jpg"));
         material.setMainImageSourcePaths(List.of("/tmp/pkg/主图/source.jpg"));
@@ -62,9 +63,10 @@ class ListingDraftFactoryTest {
         assertThat(draft.getStatus()).isEqualTo(ListingDraftStatus.GENERATING);
         assertThat(draft.getChineseTitle()).isEqualTo("黑色连衣裙");
         assertThat(draft.getProductMainImage()).isEqualTo("/tmp/pkg/主图/source.jpg");
-        assertThat(draft.getProductSizeChartImage()).isEqualTo("/tmp/pkg/尺码表/a.jpg");
+        assertThat(draft.getProductSizeChartImage()).isEqualTo("/tmp/pkg/尺码表/b.jpg");
         assertThat(draft.getDescriptionImagePaths()).containsExactly("/tmp/pkg/副图/1.jpg");
         assertThat(draft.getVariantAttributes()).containsEntry("颜色", List.of("黑色", "白色"));
+        assertThat(draft.getVariantPreviewImages()).containsExactly("/tmp/pkg/尺码表/a.jpg", "/tmp/pkg/尺码表/b.jpg");
         assertThat(draft.getTransactionInfo()).hasSize(1);
         assertThat(draft.getTransactionInfo().getFirst().getSku()).isEqualTo("SKU-1");
     }

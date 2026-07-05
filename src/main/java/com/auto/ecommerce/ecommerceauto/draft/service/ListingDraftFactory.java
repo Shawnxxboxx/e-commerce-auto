@@ -33,10 +33,11 @@ public class ListingDraftFactory {
         draft.setEnglishTitle("");
         draft.setBrand(material.getBrand());
         draft.setProductMainImage(first(material.getMainImageSourcePaths()));
-        draft.setProductSizeChartImage(first(material.getSizeChartImagePaths()));
+        draft.setProductSizeChartImage(sizeChartImage(material));
         draft.setProductDetailImages(material.getDetailImagePaths());
         draft.setDescriptionImagePaths(material.getDetailImagePaths());
         draft.setVariantAttributes(splitVariantAttributes(material.getVariantAttributes()));
+        draft.setVariantPreviewImages(material.getSizeChartImagePaths());
         draft.setTransactionInfo(material.getTransactionRows().stream().map(this::mapTransactionRow).toList());
         return draft;
     }
@@ -69,5 +70,11 @@ public class ListingDraftFactory {
 
     private String first(List<String> values) {
         return values == null || values.isEmpty() ? null : values.getFirst();
+    }
+
+    private String sizeChartImage(ProductMaterialPackage material) {
+        return material.getSizeChartImagePath() == null || material.getSizeChartImagePath().isBlank()
+                ? first(material.getSizeChartImagePaths())
+                : material.getSizeChartImagePath();
     }
 }
