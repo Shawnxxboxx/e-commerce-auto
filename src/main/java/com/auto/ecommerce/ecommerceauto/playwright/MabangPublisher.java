@@ -7,12 +7,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.io.File;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 /**
  * 马帮 ERP — TikTok 全托管刊登自动化服务。
@@ -39,9 +37,6 @@ public class MabangPublisher {
     /** TikTok Shop 刊登列表入口 */
     private static final String DEFAULT_PUBLISH_ENTRY_URL =
             "https://www.mabangerp.com/index.php?mod=main.gotoApp&v=v3&menuKey=M001089961&platform=tiktokshop&version=1";
-
-    /** 素材图片资源目录（相对于项目根目录） */
-    private static final String RESOURCE_IMAGE_DIR = "src/main/resources/templates/素材/";
 
     // ========== 生命周期 ==========
 
@@ -173,10 +168,7 @@ public class MabangPublisher {
                 fillCategoryAttributes(formFrame, request.getCategoryAttributes());
             }
 
-            // ==================== 5. 商品素材上传（描述图为必填，失败中止）====================
-            // 自动补全未设置的图片路径（从 resource 目录随机取）
-            fillImagePathsFromResources(request);
-
+            // ==================== 5. 商品素材上传 ====================
             // 5a. 选择传图模式
             if (request.getPicSetType() != null) {
                 selectPicSetType(formFrame, request.getPicSetType());
@@ -634,76 +626,6 @@ public class MabangPublisher {
             fileInput.setInputFiles(Paths.get(videoPath));
             log.debug("视频文件已选择: {}", videoPath);
             pageWait(3000); // 等待上传
-        }
-    }
-
-    /**
-     * 从 resource 目录自动补全未设置的图片路径。
-     * <p>
-     * 目录结构：src/main/resources/templates/素材/
-     *   └─ 主图素材/素材1.jpg   → 首图
-     *   └─ 副图/2.jpg ~ 9.jpg   → 尺寸图、细节图、描述图（随机选取）
-     * <p>
-     * 已设置的字段不会被覆盖，仅补 null/空 的字段。
-     */
-    private void fillImagePathsFromResources(TikTokPublishRequest request) {
-        // 默认传图模式
-        if (request.getPicSetType() == null) {
-            request.setPicSetType("SpuWithSkc");
-        }
-
-        String baseDir = RESOURCE_IMAGE_DIR;
-        File mainDir = new File(baseDir + "主图素材");
-        File subDir = new File(baseDir + "副图");
-
-        // 首图：主图素材/素材1.jpg
-        if (request.getProductMainImage() == null) {
-            File[] mainFiles = mainDir.listFiles((d, name) -> name.endsWith(".jpg"));
-            if (mainFiles != null && mainFiles.length > 0) {
-                request.setProductMainImage(mainFiles[0].getAbsolutePath());
-                log.debug("资源补全 → productMainImage: {}", request.getProductMainImage());
-            }
-        }
-
-        // 收集副图文件列表
-        File[] subFiles = subDir.listFiles((d, name) -> name.endsWith(".jpg"));
-        if (subFiles == null || subFiles.length == 0) {
-            log.warn("副图目录为空或不存在: {}", subDir.getAbsolutePath());
-            return;
-        }
-
-        Random rand = new Random();
-        // 打乱用副本（避免原地修改）
-        List<File> shuffled = new ArrayList<>(List.of(subFiles));
-        java.util.Collections.shuffle(shuffled, rand);
-        int idx = 0;
-
-        // 尺寸图：随机取 1 张
-        if (request.getProductSizeChartImage() == null && idx < shuffled.size()) {
-            request.setProductSizeChartImage(shuffled.get(idx++).getAbsolutePath());
-            log.debug("资源补全 → productSizeChartImage: {}", request.getProductSizeChartImage());
-        }
-
-        // 细节图：随机取 2 张
-        if (request.getProductDetailImages() == null || request.getProductDetailImages().isEmpty()) {
-            List<String> detailPaths = new ArrayList<>();
-            int take = Math.min(2, shuffled.size() - idx);
-            for (int i = 0; i < take; i++) {
-                detailPaths.add(shuffled.get(idx++).getAbsolutePath());
-            }
-            request.setProductDetailImages(detailPaths);
-            log.debug("资源补全 → productDetailImages: {}", detailPaths);
-        }
-
-        // 描述图：随机取 4 张（不重复）
-        if (request.getDescriptionImagePaths() == null || request.getDescriptionImagePaths().isEmpty()) {
-            List<String> descPaths = new ArrayList<>();
-            int take = Math.min(4, shuffled.size() - idx);
-            for (int i = 0; i < take; i++) {
-                descPaths.add(shuffled.get(idx++).getAbsolutePath());
-            }
-            request.setDescriptionImagePaths(descPaths);
-            log.debug("资源补全 → descriptionImagePaths: {}", descPaths);
         }
     }
 
