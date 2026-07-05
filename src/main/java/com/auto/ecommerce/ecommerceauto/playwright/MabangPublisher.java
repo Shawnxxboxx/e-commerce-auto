@@ -128,19 +128,7 @@ public class MabangPublisher {
                     : browser.contexts().get(0);
 
             // 在已有标签页中查找马帮页面
-            Page page = null;
-            for (Page p : context.pages()) {
-                if (p.url().contains("mabangerp.com")) {
-                    page = p;
-                    log.info("成功接管当前 Chrome 中的马帮页面: {}", p.url());
-                    break;
-                }
-            }
-
-            if (page == null) {
-                log.info("未在当前 Chrome 中检测到马帮页面，正在新建标签页...");
-                page = context.newPage();
-            }
+            Page page = context.newPage();
             FormFrame form = openPublishForm(context, page, request);
             page = form.page();
             FrameLocator formFrame = form.frame();
