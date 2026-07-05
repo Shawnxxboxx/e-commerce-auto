@@ -8,6 +8,7 @@ import com.auto.ecommerce.ecommerceauto.material.model.ProductMaterialPackage;
 import com.auto.ecommerce.ecommerceauto.template.entity.SopTemplateEntity;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,7 @@ public class ListingDraftFactory {
         draft.setProductDetailImages(material.getDetailImagePaths());
         draft.setDescriptionImagePaths(material.getDetailImagePaths());
         draft.setVariantAttributes(splitVariantAttributes(material.getVariantAttributes()));
-        draft.setVariantPreviewImages(material.getSizeChartImagePaths());
+        draft.setVariantPreviewImages(sizeChartImages(material));
         draft.setTransactionInfo(material.getTransactionRows().stream().map(this::mapTransactionRow).toList());
         return draft;
     }
@@ -69,5 +70,18 @@ public class ListingDraftFactory {
 
     private String first(List<String> values) {
         return values == null || values.isEmpty() ? null : values.getFirst();
+    }
+
+    private List<String> sizeChartImages(ProductMaterialPackage material) {
+        List<String> images = new ArrayList<>();
+        if (material.getSizeChartImagePath() != null && !material.getSizeChartImagePath().isBlank()) {
+            images.add(material.getSizeChartImagePath());
+        }
+        for (String path : material.getSizeChartImagePaths()) {
+            if (!images.contains(path)) {
+                images.add(path);
+            }
+        }
+        return images;
     }
 }

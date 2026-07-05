@@ -66,7 +66,7 @@ class ListingDraftFactoryTest {
         assertThat(draft.getProductSizeChartImage()).isNull();
         assertThat(draft.getDescriptionImagePaths()).containsExactly("/tmp/pkg/副图/1.jpg");
         assertThat(draft.getVariantAttributes()).containsEntry("颜色", List.of("黑色", "白色"));
-        assertThat(draft.getVariantPreviewImages()).containsExactly("/tmp/pkg/尺码表/a.jpg", "/tmp/pkg/尺码表/b.jpg");
+        assertThat(draft.getVariantPreviewImages()).containsExactly("/tmp/pkg/尺码表/b.jpg", "/tmp/pkg/尺码表/a.jpg");
         assertThat(draft.getTransactionInfo()).hasSize(1);
         assertThat(draft.getTransactionInfo().getFirst().getSku()).isEqualTo("SKU-1");
     }
