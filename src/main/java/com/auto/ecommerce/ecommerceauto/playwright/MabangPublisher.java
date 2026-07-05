@@ -659,17 +659,21 @@ public class MabangPublisher {
         if (imagePaths.isEmpty()) {
             return;
         }
-        Locator fileInput = frame.locator("#box3 input[type='file']").first();
-        fileInput.setInputFiles(
-                imagePaths.stream()
-                        .map(Paths::get)
-                        .toArray(java.nio.file.Path[]::new)
-        );
-        log.debug("已按顺序上传 {} 张产品图: {}", imagePaths.size(), imagePaths);
+        Locator fileInputs = frame.locator(".draggable-box input[type='file']");
+        long slotCount = fileInputs.count();
+        if (slotCount == 0) {
+            throw new RuntimeException("未找到产品图上传槽位 .draggable-box input[type='file']");
+        }
+        int uploadCount = (int) Math.min(imagePaths.size(), slotCount);
+        for (int i = 0; i < uploadCount; i++) {
+            fileInputs.nth(i).setInputFiles(Paths.get(imagePaths.get(i)));
+            pageWait(1000);
+        }
+        log.debug("已按顺序上传 {} 张产品图: {}", uploadCount, imagePaths);
         pageWait(3000); // 等待上传
     }
 
-    private List<String> productImages(TikTokPublishRequest request) {
+    List<String> productImages(TikTokPublishRequest request) {
         List<String> images = new ArrayList<>();
         if (request.getProductMainImage() != null && !request.getProductMainImage().isBlank()) {
             images.add(request.getProductMainImage());
