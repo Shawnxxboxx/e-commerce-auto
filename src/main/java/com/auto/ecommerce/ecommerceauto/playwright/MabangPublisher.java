@@ -141,13 +141,9 @@ public class MabangPublisher {
                 log.info("未在当前 Chrome 中检测到马帮页面，正在新建标签页...");
                 page = context.newPage();
             }
-            page = openPublishForm(context, page, request);
-
-            // 定位 iframe
-            FrameLocator formFrame = page.frameLocator("iframe[src*='publish'], iframe#iframeContent");
-
-            log.info("正在等待子框架内的表单元素加载...");
-            formFrame.locator("#box1").waitFor();
+            FormFrame form = openPublishForm(context, page, request);
+            page = form.page();
+            FrameLocator formFrame = form.frame();
 
             // ==================== 1. 选择店铺 ====================
             if (request.getShopName() != null) {
@@ -270,7 +266,7 @@ public class MabangPublisher {
     /**
      * 从刊登列表入口点击"新增刊登"，进入具体表单页。
      */
-    private Page openPublishForm(BrowserContext context, Page page, TikTokPublishRequest request) {
+    private FormFrame openPublishForm(BrowserContext context, Page page, TikTokPublishRequest request) {
         String entryUrl = request.getUrl() != null && !request.getUrl().isBlank()
                 ? request.getUrl()
                 : DEFAULT_PUBLISH_ENTRY_URL;
@@ -279,12 +275,12 @@ public class MabangPublisher {
         navigateWithRetry(page, entryUrl);
         pageWait(3000);
 
-        clickAddListing(page);
-        pageWait(3000);
-        return latestMabangPage(context, page);
+        Page clickedPage = clickAddListing(page);
+        pageWait(2000);
+        return waitForFormFrame(context, clickedPage);
     }
 
-    private void clickAddListing(Page page) {
+    private Page clickAddListing(Page page) {
         Exception last = null;
         List<Locator> candidates = List.of(
                 page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("新增刊登")),
@@ -297,9 +293,16 @@ public class MabangPublisher {
             try {
                 Locator target = candidate.first();
                 target.waitFor(new Locator.WaitForOptions().setTimeout(5000));
-                target.click();
-                log.info("已点击新增刊登");
-                return;
+                try {
+                    Page popup = page.waitForPopup(
+                            new Page.WaitForPopupOptions().setTimeout(5000),
+                            target::click);
+                    log.info("已点击新增刊登，新标签页: {}", popup.url());
+                    return popup;
+                } catch (TimeoutError e) {
+                    log.info("已点击新增刊登，当前页继续加载");
+                    return page;
+                }
             } catch (Exception e) {
                 last = e;
             }
@@ -307,16 +310,61 @@ public class MabangPublisher {
         throw new RuntimeException("未找到新增刊登按钮" + (last != null ? ": " + last.getMessage() : ""));
     }
 
-    private Page latestMabangPage(BrowserContext context, Page fallback) {
-        List<Page> pages = context.pages();
-        for (int i = pages.size() - 1; i >= 0; i--) {
-            Page candidate = pages.get(i);
-            if (candidate.url().contains("mabangerp.com")) {
-                return candidate;
+    private FormFrame waitForFormFrame(BrowserContext context, Page preferredPage) {
+        long deadline = System.currentTimeMillis() + properties.getTimeoutMs();
+        List<String> frameSelectors = List.of("iframe[src*='publish']", "iframe#iframeContent");
+        Exception last = null;
+        log.info("正在等待新增刊登表单加载...");
+        while (System.currentTimeMillis() < deadline) {
+            for (Page candidatePage : candidatePages(context, preferredPage)) {
+                for (String selector : frameSelectors) {
+                    try {
+                        FrameLocator frame = candidatePage.frameLocator(selector);
+                        frame.locator("#box1").waitFor(new Locator.WaitForOptions().setTimeout(1000));
+                        log.info("新增刊登表单已加载: page={}, iframe={}", candidatePage.url(), selector);
+                        return new FormFrame(candidatePage, frame);
+                    } catch (Exception e) {
+                        last = e;
+                    }
+                }
+            }
+            pageWait(1000);
+        }
+        log.warn("未找到表单 iframe。当前页面/iframe: {}", describePages(context));
+        throw new RuntimeException("新增刊登表单未加载" + (last != null ? ": " + last.getMessage() : ""));
+    }
+
+    private List<Page> candidatePages(BrowserContext context, Page preferredPage) {
+        List<Page> pages = new ArrayList<>();
+        if (preferredPage != null && !preferredPage.isClosed()) {
+            pages.add(preferredPage);
+        }
+        List<Page> all = context.pages();
+        for (int i = all.size() - 1; i >= 0; i--) {
+            Page page = all.get(i);
+            if (!page.isClosed() && page.url().contains("mabangerp.com") && !pages.contains(page)) {
+                pages.add(page);
             }
         }
-        return fallback;
+        return pages;
     }
+
+    private String describePages(BrowserContext context) {
+        StringBuilder report = new StringBuilder();
+        for (Page page : context.pages()) {
+            if (page.isClosed()) {
+                continue;
+            }
+            report.append("page=").append(page.url()).append(" frames=[");
+            for (Frame frame : page.frames()) {
+                report.append(frame.url()).append(", ");
+            }
+            report.append("]; ");
+        }
+        return report.toString();
+    }
+
+    private record FormFrame(Page page, FrameLocator frame) { }
 
     // ========== 🩺 诊断 ==========
 
