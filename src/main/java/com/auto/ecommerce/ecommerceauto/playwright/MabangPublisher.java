@@ -657,8 +657,8 @@ public class MabangPublisher {
      * 页面按上传顺序填充槽位：首图 → 尺寸图 → 细节图...，所以直接按 productMainImage + productDetailImages 上传。
      */
     private void uploadProductImages(FrameLocator frame, TikTokPublishRequest request) {
-        List<String> imagePaths = productImages(request);
-        if (imagePaths.isEmpty()) {
+        ProductImageGroups groups = productImageGroups(request);
+        if (groups.allImages().isEmpty()) {
             return;
         }
         Locator fileInputs = frame.locator(".draggable-box input[type='file']");
@@ -666,12 +666,26 @@ public class MabangPublisher {
         if (slotCount == 0) {
             throw new RuntimeException("未找到产品图上传槽位 .draggable-box input[type='file']");
         }
-        for (int i = 0; i < imagePaths.size(); i++) {
-            fileInputs.nth(i).setInputFiles(Paths.get(imagePaths.get(i)));
+
+        if (groups.mainImage() != null) {
+            fileInputs.nth(0).setInputFiles(Paths.get(groups.mainImage()));
             pageWait(1000);
         }
-        int uploaded = waitForProductImageCount(frame, imagePaths.size());
-        log.info("已按顺序上传 {} 张产品图: {}", uploaded, imagePaths);
+        if (groups.sizeImage() != null) {
+            fileInputs.nth(1).setInputFiles(Paths.get(groups.sizeImage()));
+            pageWait(1000);
+        }
+        if (!groups.detailImages().isEmpty()) {
+            fileInputs.nth(2).setInputFiles(
+                    groups.detailImages().stream()
+                            .map(Paths::get)
+                            .toArray(java.nio.file.Path[]::new)
+            );
+        }
+
+        int uploaded = waitForProductImageCount(frame, groups.allImages().size());
+        log.info("已上传 {} 张产品图，首图={}, 尺寸图={}, 细节图={}",
+                uploaded, groups.mainImage(), groups.sizeImage(), groups.detailImages());
     }
 
     List<String> productImages(TikTokPublishRequest request) {
@@ -684,6 +698,16 @@ public class MabangPublisher {
         }
         return images;
     }
+
+    ProductImageGroups productImageGroups(TikTokPublishRequest request) {
+        List<String> images = productImages(request);
+        String mainImage = images.isEmpty() ? null : images.getFirst();
+        String sizeImage = images.size() < 2 ? null : images.get(1);
+        List<String> detailImages = images.size() <= 2 ? List.of() : images.subList(2, images.size());
+        return new ProductImageGroups(mainImage, sizeImage, detailImages, images);
+    }
+
+    record ProductImageGroups(String mainImage, String sizeImage, List<String> detailImages, List<String> allImages) { }
 
     private int waitForProductImageCount(FrameLocator frame, int expected) {
         long deadline = System.currentTimeMillis() + properties.getTimeoutMs();
