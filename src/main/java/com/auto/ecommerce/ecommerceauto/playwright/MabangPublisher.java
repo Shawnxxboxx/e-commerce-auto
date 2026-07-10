@@ -202,7 +202,11 @@ public class MabangPublisher {
                 }
             }
 
-            // ==================== 8. 资质合规（选填，失败不中止）====================
+            // ==================== 8. 资质合规与产品包装图 ====================
+            if (request.getPackageImagePaths() != null && !request.getPackageImagePaths().isEmpty()) {
+                uploadPackageImages(formFrame, request.getPackageImagePaths());
+            }
+
             if (request.getManufacturer() != null) {
                 try {
                     selectManufacturer(formFrame, request.getManufacturer());
@@ -744,6 +748,45 @@ public class MabangPublisher {
         );
         log.debug("已选择 {} 张描述图，等待上传完成", imagePaths.size());
         pageWait(5000); // 等待上传
+    }
+
+    /**
+     * 上传资质合规区域的产品包装图。
+     * <p>
+     * 包装图控件由类目动态渲染，不能依赖固定 id；使用表单项标题限定范围，
+     * 避免误触描述图或产品图上传 input。
+     */
+    private void uploadPackageImages(FrameLocator frame, List<String> imagePaths) {
+        if (imagePaths == null || imagePaths.isEmpty()) {
+            return;
+        }
+
+        Locator uploadInput = frame.locator(
+                ".el-form-item:has(.el-form-item__label:has-text('产品包装图')) input[type='file']");
+        if (uploadInput.count() == 0) {
+            uploadInput = frame.locator(
+                    ".el-form-item:has-text('产品包装图') input[type='file']");
+        }
+        if (uploadInput.count() == 0) {
+            uploadInput = frame.locator(
+                    ".el-form-item:has-text('包装图') input[type='file']");
+        }
+        if (uploadInput.count() == 0) {
+            // 马帮当前页面通常将第 8 步挂在 box8，作为动态类目表单的兜底定位。
+            uploadInput = frame.locator("#box8 input[type='file']");
+        }
+        if (uploadInput.count() == 0) {
+            throw new RuntimeException("未找到资质合规区域的产品包装图上传控件");
+        }
+        if (uploadInput.count() > 1) {
+            throw new RuntimeException("产品包装图上传控件不唯一，找到 " + uploadInput.count() + " 个");
+        }
+
+        uploadInput.setInputFiles(imagePaths.stream()
+                .map(Paths::get)
+                .toArray(java.nio.file.Path[]::new));
+        log.info("已选择 {} 张产品包装图: {}", imagePaths.size(), imagePaths);
+        pageWait(3000);
     }
 
     /**

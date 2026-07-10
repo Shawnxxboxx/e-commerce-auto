@@ -20,12 +20,15 @@ class MaterialPackageParserTest {
         Files.createDirectories(packageDir.resolve("主图"));
         Files.createDirectories(packageDir.resolve("副图"));
         Files.createDirectories(packageDir.resolve("尺码表"));
+        Files.createDirectories(packageDir.resolve("包装图"));
         Files.writeString(packageDir.resolve("主图").resolve("2.png"), "image");
         Files.writeString(packageDir.resolve("主图").resolve("1.jpg"), "image");
         Files.writeString(packageDir.resolve("副图").resolve("b.jpeg"), "image");
         Files.writeString(packageDir.resolve("副图").resolve("a.jpg"), "image");
         Files.writeString(packageDir.resolve("尺码表").resolve("size.jpg"), "image");
         Files.writeString(packageDir.resolve("尺码表").resolve("size-2.png"), "image");
+        Files.writeString(packageDir.resolve("包装图").resolve("2.png"), "image");
+        Files.writeString(packageDir.resolve("包装图").resolve("1.jpg"), "image");
         Files.writeString(packageDir.resolve("属性信息.txt"), """
                 [产品信息]
                 产品名称=黑白剪刀
@@ -36,6 +39,10 @@ class MaterialPackageParserTest {
 
                 [分类属性]
                 材质=不锈钢
+
+                [资质合规]
+                制造商=测试制造商
+                欧盟责任人=测试责任人
 
                 [变种属性]
                 颜色=套装1
@@ -69,6 +76,12 @@ class MaterialPackageParserTest {
                         packageDir.resolve("尺码表").resolve("size-2.png").toAbsolutePath().toString(),
                         packageDir.resolve("尺码表").resolve("size.jpg").toAbsolutePath().toString()
                 );
+        assertThat(material.getManufacturer()).isEqualTo("测试制造商");
+        assertThat(material.getEuResponsiblePerson()).isEqualTo("测试责任人");
+        assertThat(material.getPackageImagePaths()).containsExactly(
+                packageDir.resolve("包装图").resolve("1.jpg").toAbsolutePath().toString(),
+                packageDir.resolve("包装图").resolve("2.png").toAbsolutePath().toString()
+        );
     }
 
     @Test
@@ -77,6 +90,7 @@ class MaterialPackageParserTest {
         Files.createDirectories(packageDir.resolve("主图"));
         Files.createDirectories(packageDir.resolve("副图"));
         Files.createDirectories(packageDir.resolve("尺码表"));
+        Files.createDirectories(packageDir.resolve("包装图"));
         Files.writeString(packageDir.resolve("主图").resolve("1.jpg"), "image");
         Files.writeString(packageDir.resolve("副图").resolve("1.jpg"), "image");
         Files.writeString(packageDir.resolve("尺码表").resolve("size.jpg"), "image");
@@ -90,6 +104,10 @@ class MaterialPackageParserTest {
 
                 [分类属性]
                 材质=不锈钢
+
+                [资质合规]
+                制造商=测试制造商
+                欧盟责任人=测试责任人
 
                 [变种属性]
                 颜色=套装1

@@ -84,6 +84,9 @@ public class TikTokPublishRequest {
     /** 描述图文件路径列表 */
     private List<String> descriptionImagePaths;
 
+    /** 产品包装图文件路径列表 */
+    private List<String> packageImagePaths;
+
     // ========== 4. 变种信息 ==========
 
     /**

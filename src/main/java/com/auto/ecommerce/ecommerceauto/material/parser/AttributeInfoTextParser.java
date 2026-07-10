@@ -18,6 +18,7 @@ public class AttributeInfoTextParser {
     private static final String CATEGORY_ATTRIBUTES = "分类属性";
     private static final String VARIANT_ATTRIBUTES = "变种属性";
     private static final String TRANSACTION_INFO = "交易信息";
+    private static final String QUALIFICATION = "资质合规";
     private static final List<String> TRANSACTION_HEADER = List.of(
             "颜色", "商品货号(SKC)", "备货模式", "尺码", "SKU货号", "不含税价(CNY)", "库存", "长", "宽", "高", "重量(g)"
     );
@@ -28,6 +29,7 @@ public class AttributeInfoTextParser {
         requireSection(sections, CATEGORY_ATTRIBUTES);
         requireSection(sections, VARIANT_ATTRIBUTES);
         requireSection(sections, TRANSACTION_INFO);
+        requireSection(sections, QUALIFICATION);
 
         ProductMaterialPackage material = new ProductMaterialPackage();
         Map<String, String> productInfo = parseKeyValues(sections.get(PRODUCT_INFO), PRODUCT_INFO);
@@ -36,6 +38,9 @@ public class AttributeInfoTextParser {
         material.setShopName(requiredValue(productInfo, "店铺", PRODUCT_INFO));
         material.setCategoryName(requiredValue(productInfo, "类目", PRODUCT_INFO));
         material.setBrand(requiredValue(productInfo, "品牌", PRODUCT_INFO));
+        Map<String, String> qualification = parseKeyValues(sections.get(QUALIFICATION), QUALIFICATION);
+        material.setManufacturer(requiredValue(qualification, "制造商", QUALIFICATION));
+        material.setEuResponsiblePerson(requiredValue(qualification, "欧盟责任人", QUALIFICATION));
         material.setCategoryAttributes(parseKeyValues(sections.get(CATEGORY_ATTRIBUTES), CATEGORY_ATTRIBUTES));
 
         Map<String, String> variantAttributes = parseKeyValues(sections.get(VARIANT_ATTRIBUTES), VARIANT_ATTRIBUTES);

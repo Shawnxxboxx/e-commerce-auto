@@ -28,6 +28,10 @@ class AttributeInfoTextParserTest {
                 是否含有化学物质=否
                 原产地=中国
 
+                [资质合规]
+                制造商=测试制造商
+                欧盟责任人=测试责任人
+
                 [变种属性]
                 颜色=套装1
                 规格=均码
@@ -48,6 +52,8 @@ class AttributeInfoTextParserTest {
         assertThat(material.getCategoryAttributes()).containsEntry("材质", "不锈钢");
         assertThat(material.getVariantAttributes()).containsEntry("颜色", "套装1");
         assertThat(material.getSizeChartImageName()).isEqualTo("size.jpg");
+        assertThat(material.getManufacturer()).isEqualTo("测试制造商");
+        assertThat(material.getEuResponsiblePerson()).isEqualTo("测试责任人");
 
         MaterialTransactionRow row = material.getTransactionRows().getFirst();
         assertThat(row.getColor()).isEqualTo("套装1");
@@ -74,6 +80,10 @@ class AttributeInfoTextParserTest {
 
                 [分类属性]
                 材质=不锈钢
+
+                [资质合规]
+                制造商=测试制造商
+                欧盟责任人=测试责任人
 
                 [变种属性]
                 颜色=套装1

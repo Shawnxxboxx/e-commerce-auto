@@ -15,6 +15,8 @@ public class ProductMaterialPackage {
     private String shopName;
     private String categoryName;
     private String brand;
+    private String manufacturer;
+    private String euResponsiblePerson;
     private Map<String, String> categoryAttributes = new LinkedHashMap<>();
     private Map<String, String> variantAttributes = new LinkedHashMap<>();
     private String sizeChartImageName;
@@ -23,4 +25,5 @@ public class ProductMaterialPackage {
     private List<MaterialTransactionRow> transactionRows = new ArrayList<>();
     private List<String> mainImageSourcePaths = new ArrayList<>();
     private List<String> detailImagePaths = new ArrayList<>();
+    private List<String> packageImagePaths = new ArrayList<>();
 }

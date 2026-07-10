@@ -23,11 +23,14 @@ public class ListingDraftToTikTokPublishRequestMapper {
                 .productMainImage(draft.getProductMainImage())
                 .productDetailImages(draft.getProductDetailImages())
                 .descriptionImagePaths(draft.getDescriptionImagePaths())
+                .packageImagePaths(draft.getPackageImagePaths())
                 .variantAttributes(draft.getVariantAttributes())
                 .variantPreviewImages(draft.getVariantPreviewImages())
                 .transactionInfo(draft.getTransactionInfo().stream()
                         .map(this::mapTransactionRow)
                         .toList())
+                .manufacturer(draft.getManufacturer())
+                .euResponsiblePerson(draft.getEuResponsiblePerson())
                 .publish(draft.isPublish())
                 .build();
     }

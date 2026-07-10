@@ -33,9 +33,12 @@ public class ListingDraftFactory {
         draft.setChineseTitle(material.getProductName());
         draft.setEnglishTitle("");
         draft.setBrand(material.getBrand());
+        draft.setManufacturer(material.getManufacturer());
+        draft.setEuResponsiblePerson(material.getEuResponsiblePerson());
         draft.setProductMainImage(first(material.getMainImageSourcePaths()));
         draft.setProductDetailImages(material.getDetailImagePaths());
         draft.setDescriptionImagePaths(material.getDetailImagePaths());
+        draft.setPackageImagePaths(material.getPackageImagePaths());
         draft.setVariantAttributes(splitVariantAttributes(material.getVariantAttributes()));
         draft.setVariantPreviewImages(sizeChartImages(material));
         draft.setTransactionInfo(material.getTransactionRows().stream().map(this::mapTransactionRow).toList());

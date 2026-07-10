@@ -24,12 +24,15 @@ public class ListingDraft {
     private String chineseTitle;
     private String englishTitle;
     private String brand = "无品牌";
+    private String manufacturer;
+    private String euResponsiblePerson;
 
     private String picSetType;
     private String productMainImage;
     private String productSizeChartImage;
     private List<String> productDetailImages = new ArrayList<>();
     private List<String> descriptionImagePaths = new ArrayList<>();
+    private List<String> packageImagePaths = new ArrayList<>();
 
     private Map<String, List<String>> variantAttributes = new LinkedHashMap<>();
     private List<String> variantPreviewImages = new ArrayList<>();

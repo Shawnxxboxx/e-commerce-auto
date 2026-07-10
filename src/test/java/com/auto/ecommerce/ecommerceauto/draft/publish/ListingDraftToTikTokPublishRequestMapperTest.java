@@ -14,6 +14,9 @@ class ListingDraftToTikTokPublishRequestMapperTest {
     @Test
     void mapsDraftToTikTokPublishRequest() {
         ListingDraft draft = completeDraft();
+        draft.setManufacturer("测试制造商");
+        draft.setEuResponsiblePerson("测试责任人");
+        draft.setPackageImagePaths(java.util.List.of("/tmp/pkg/包装图/1.jpg"));
 
         TikTokPublishRequest request = mapper.map(draft);
 
@@ -24,6 +27,9 @@ class ListingDraftToTikTokPublishRequestMapperTest {
         assertThat(request.getProductMainImage()).endsWith("generated.png");
         assertThat(request.getProductSizeChartImage()).isNull();
         assertThat(request.getDescriptionImagePaths()).hasSize(1);
+        assertThat(request.getManufacturer()).isEqualTo("测试制造商");
+        assertThat(request.getEuResponsiblePerson()).isEqualTo("测试责任人");
+        assertThat(request.getPackageImagePaths()).containsExactly("/tmp/pkg/包装图/1.jpg");
         assertThat(request.getVariantAttributes()).containsKey("颜色");
         assertThat(request.getTransactionInfo()).hasSize(1);
         assertThat(request.getTransactionInfo().getFirst().getSku()).isEqualTo("黑白剪刀-套装1-均码");

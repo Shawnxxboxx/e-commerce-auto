@@ -19,6 +19,7 @@ public class MaterialPackageParser {
     private static final String MAIN_IMAGE_DIR = "主图";
     private static final String DETAIL_IMAGE_DIR = "副图";
     private static final String SIZE_CHART_DIR = "尺码表";
+    private static final String PACKAGE_IMAGE_DIR = "包装图";
     private static final String ATTRIBUTE_INFO_FILE = "属性信息.txt";
 
     private final AttributeInfoTextParser attributeInfoTextParser;
@@ -37,6 +38,7 @@ public class MaterialPackageParser {
             material.setMaterialPackagePath(packagePath.toString());
             material.setMainImageSourcePaths(listImages(packagePath.resolve(MAIN_IMAGE_DIR)));
             material.setDetailImagePaths(listImages(packagePath.resolve(DETAIL_IMAGE_DIR)));
+            material.setPackageImagePaths(listImages(packagePath.resolve(PACKAGE_IMAGE_DIR)));
             fillSizeChartPath(packagePath, material);
             return material;
         } catch (IOException e) {
