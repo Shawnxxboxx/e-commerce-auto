@@ -1,0 +1,31 @@
+[产品信息]
+产品名称=黑白剪刀
+来源URL=
+店铺=Future Tech Tools
+类目=箱包>女士包袋>女士手提包
+品牌=无品牌
+
+[分类属性]
+原产地=中国大陆(Mainland China)
+是否含有化学物质=否(No)
+箱包材质=PU革(PU Leather)
+该商品是否有安全警示信息/标签（单个或多个）=否(No)
+是否含有致癌物质=否(No)
+材质=PU革(PU Leather)
+敏感品分类=非敏感品(Non Sensitive Good)
+风格=休闲(Casual)
+每包数量=1件(1 Piece)
+图案花纹=纯色(Solid)
+季节=夏(Summer
+
+[变种属性]
+颜色=水仙黄
+尺码=iphone 14 Pro
+
+[交易信息]
+颜色|商品货号(SKC)|备货模式|尺码|SKU货号|不含税价(CNY)|库存|长|宽|高|重量(g)
+水仙黄|2|JIT备货|iPhone 14 Pro|2|5|999|21|9|2|150
+
+[资质合规]
+制造商=Hangzhou Shenhai Exploration Technology Co., Ltd.
+欧盟责任人=SUNBURST INNOVATIONS SP. Z O.O.
