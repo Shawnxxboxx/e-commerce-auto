@@ -77,6 +77,7 @@ export interface ListingDraftPreview {
   euResponsiblePerson?: string;
   productMainImage?: string;
   productSizeChartImage?: string;
+  variantPreviewImages?: string[];
   descriptionImagePaths: string[];
   packageImagePaths?: string[];
   categoryAttributes: Record<string, string>;

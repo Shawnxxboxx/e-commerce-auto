@@ -80,6 +80,11 @@ function DraftDetail({
 }) {
   const draft = response.draft;
   const errors = validateDraft(draft);
+  const sizeChartPaths = draft.variantPreviewImages?.length
+    ? draft.variantPreviewImages
+    : draft.productSizeChartImage
+      ? [draft.productSizeChartImage]
+      : [];
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -148,7 +153,7 @@ function DraftDetail({
           <Typography.Title level={5}>产品主图</Typography.Title>
           <ImagePathPreview paths={draft.productMainImage ? [draft.productMainImage] : []} />
           <Typography.Title level={5}>尺码表</Typography.Title>
-          <ImagePathPreview paths={draft.productSizeChartImage ? [draft.productSizeChartImage] : []} />
+          <ImagePathPreview paths={sizeChartPaths} emptyText="暂无尺码表" />
           <Typography.Title level={5}>描述图</Typography.Title>
           <ImagePathPreview paths={draft.descriptionImagePaths} />
           <Typography.Title level={5}>产品包装图</Typography.Title>
