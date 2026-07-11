@@ -226,7 +226,9 @@ public class MabangPublisher {
                 formFrame.locator("footer button:has-text('保 存')").click();
             }
 
-            pageWait(5000);
+            pageWait(3000);
+            closeSaveSuccessDialog(page, formFrame);
+            pageWait(1000);
 
             long elapsed = System.currentTimeMillis() - startTime;
             String screenshotPath = "screenshots/publish-" + System.currentTimeMillis() + ".png";
@@ -241,6 +243,30 @@ public class MabangPublisher {
             log.error("刊登失败 (耗时 {}ms)", elapsed, e);
             return PublishResult.failure("刊登失败: " + e.getMessage(), elapsed, null);
         }
+    }
+
+    /**
+     * 保存成功后马帮会弹出“刊登信息保存成功”提示，必须关闭弹窗才能结束本次刊登页面。
+     * 弹窗通常在表单 iframe 中，兼容部分页面版本把弹窗渲染到外层页面的情况。
+     */
+    private void closeSaveSuccessDialog(Page page, FrameLocator formFrame) {
+        Locator closeButton = formFrame.getByRole(AriaRole.BUTTON,
+                new FrameLocator.GetByRoleOptions().setName("关闭此页面").setExact(true));
+        if (closeButton.count() > 0 && closeButton.first().isVisible()) {
+            closeButton.first().click();
+            log.info("已关闭刊登成功提示页面");
+            return;
+        }
+
+        Locator outerCloseButton = page.getByRole(AriaRole.BUTTON,
+                new Page.GetByRoleOptions().setName("关闭此页面").setExact(true));
+        if (outerCloseButton.count() > 0 && outerCloseButton.first().isVisible()) {
+            outerCloseButton.first().click();
+            log.info("已关闭刊登成功提示页面");
+            return;
+        }
+
+        throw new RuntimeException("保存后未找到“关闭此页面”按钮，无法确认刊登页面已关闭");
     }
 
     /**
