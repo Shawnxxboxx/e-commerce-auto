@@ -224,6 +224,8 @@ export function MaterialPage({
             <Descriptions.Item label="店铺">{material.shopName || '-'}</Descriptions.Item>
             <Descriptions.Item label="类目">{material.categoryName || '-'}</Descriptions.Item>
             <Descriptions.Item label="品牌">{material.brand || '-'}</Descriptions.Item>
+            <Descriptions.Item label="制造商">{material.manufacturer || '-'}</Descriptions.Item>
+            <Descriptions.Item label="欧盟责任人">{material.euResponsiblePerson || '-'}</Descriptions.Item>
             <Descriptions.Item label="来源 URL" span={2}>
               {material.sourceUrl ? (
                 <Typography.Link href={material.sourceUrl} target="_blank" rel="noreferrer">

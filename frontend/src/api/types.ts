@@ -31,6 +31,8 @@ export interface ProductMaterialPackage {
   shopName: string;
   categoryName: string;
   brand: string;
+  manufacturer?: string;
+  euResponsiblePerson?: string;
   categoryAttributes: Record<string, string>;
   variantAttributes: Record<string, string>;
   sizeChartImageName?: string;
