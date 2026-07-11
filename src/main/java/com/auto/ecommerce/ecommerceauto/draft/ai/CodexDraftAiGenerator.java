@@ -28,8 +28,6 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
 
     private static final String CHATGPT_CODEX_COMMAND =
             "/Applications/ChatGPT.app/Contents/Resources/codex";
-    private static final String CODEX_APP_COMMAND =
-            "/Applications/Codex.app/Contents/Resources/codex";
 
     public CodexDraftAiGenerator() {
         this(new ObjectMapper());
@@ -148,28 +146,20 @@ public class CodexDraftAiGenerator implements ListingDraftAiGenerator {
         return command;
     }
 
-    /**
-     * Codex 已从独立的 Codex.app 迁移到 ChatGPT.app，保留旧配置的同时自动兼容两种安装位置。
-     */
+    /** 使用当前 ChatGPT.app 内置的 Codex 可执行文件。 */
     String resolveCodexCommand() {
         String configured = codexCommand == null ? "" : codexCommand.trim();
         if (isExecutableFile(configured)) {
             return configured;
         }
 
-        for (String candidate : List.of(CHATGPT_CODEX_COMMAND, CODEX_APP_COMMAND)) {
-            if (isExecutableFile(candidate)) {
-                log.info("Codex 配置路径不可用，使用自动探测路径: {}", candidate);
-                return candidate;
-            }
+        if (isExecutableFile(CHATGPT_CODEX_COMMAND)) {
+            log.info("Codex 配置路径不可用，使用 ChatGPT.app 内置路径: {}", CHATGPT_CODEX_COMMAND);
+            return CHATGPT_CODEX_COMMAND;
         }
 
-        // 允许通过 PATH 配置 codex，例如 Homebrew 或用户自定义安装。
-        if (!configured.isBlank() && !configured.startsWith("/")) {
-            return configured;
-        }
-        throw new IllegalStateException("未找到 Codex 可执行文件，请检查 ai.codex.command 配置。已尝试: "
-                + CHATGPT_CODEX_COMMAND + ", " + CODEX_APP_COMMAND + " 和 PATH 中的 codex");
+        throw new IllegalStateException("未找到 Codex 可执行文件，请检查 ChatGPT.app 是否已安装: "
+                + CHATGPT_CODEX_COMMAND);
     }
 
     private boolean isExecutableFile(String command) {

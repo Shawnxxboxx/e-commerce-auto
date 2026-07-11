@@ -111,9 +111,9 @@ class CodexDraftAiGeneratorTest {
     }
 
     @Test
-    void fallsBackToInstalledChatGptCodexWhenLegacyPathIsMissing() {
+    void fallsBackToChatGptCodexWhenConfiguredPathIsMissing() {
         CodexDraftAiGenerator generator = new CodexDraftAiGenerator(new ObjectMapper());
-        generator.setCodexCommand("/Applications/Codex.app/Contents/Resources/codex");
+        generator.setCodexCommand("/tmp/missing-codex");
 
         assertThat(generator.resolveCodexCommand())
                 .isEqualTo("/Applications/ChatGPT.app/Contents/Resources/codex");
