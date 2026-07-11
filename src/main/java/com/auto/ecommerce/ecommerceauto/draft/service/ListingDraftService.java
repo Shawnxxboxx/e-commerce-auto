@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -114,6 +115,7 @@ public class ListingDraftService {
         ListingDraftEntity entity = requireEntity(draftId);
         ListingDraft draft = readDraft(entity);
         enrichQualificationData(draft);
+        enrichDescriptionImages(draft);
         List<String> errors = validator.validate(draft);
         if (!errors.isEmpty()) {
             throw new IllegalArgumentException(String.join("；", errors));
@@ -162,6 +164,20 @@ public class ListingDraftService {
         if (missingPackageImages) {
             draft.setPackageImagePaths(material.getPackageImagePaths());
         }
+    }
+
+    /**
+     * 兼容 AI 主图生成前保存的旧草稿，发布时补齐描述图首图。
+     */
+    private void enrichDescriptionImages(ListingDraft draft) {
+        List<String> images = new ArrayList<>();
+        if (draft.getProductMainImage() != null && !draft.getProductMainImage().isBlank()) {
+            images.add(draft.getProductMainImage());
+        }
+        if (draft.getProductDetailImages() != null) {
+            images.addAll(draft.getProductDetailImages());
+        }
+        draft.setDescriptionImagePaths(images);
     }
 
     private ListingDraftEntity requireEntity(String draftId) {

@@ -37,7 +37,8 @@ public class ListingDraftFactory {
         draft.setEuResponsiblePerson(material.getEuResponsiblePerson());
         draft.setProductMainImage(first(material.getMainImageSourcePaths()));
         draft.setProductDetailImages(material.getDetailImagePaths());
-        draft.setDescriptionImagePaths(material.getDetailImagePaths());
+        // 描述图与产品图保持同一顺序；生成阶段会把首图替换为 AI 主图。
+        draft.setDescriptionImagePaths(productImages(draft.getProductMainImage(), material.getDetailImagePaths()));
         draft.setPackageImagePaths(material.getPackageImagePaths());
         draft.setVariantAttributes(splitVariantAttributes(material.getVariantAttributes()));
         draft.setVariantPreviewImages(sizeChartImages(material));
@@ -73,6 +74,17 @@ public class ListingDraftFactory {
 
     private String first(List<String> values) {
         return values == null || values.isEmpty() ? null : values.getFirst();
+    }
+
+    private List<String> productImages(String mainImage, List<String> detailImages) {
+        List<String> images = new ArrayList<>();
+        if (mainImage != null && !mainImage.isBlank()) {
+            images.add(mainImage);
+        }
+        if (detailImages != null) {
+            images.addAll(detailImages);
+        }
+        return images;
     }
 
     private List<String> sizeChartImages(ProductMaterialPackage material) {

@@ -70,7 +70,8 @@ class ListingDraftFactoryTest {
         assertThat(draft.getManufacturer()).isEqualTo("测试制造商");
         assertThat(draft.getEuResponsiblePerson()).isEqualTo("测试责任人");
         assertThat(draft.getPackageImagePaths()).containsExactly("/tmp/pkg/包装图/1.jpg");
-        assertThat(draft.getDescriptionImagePaths()).containsExactly("/tmp/pkg/副图/1.jpg");
+        assertThat(draft.getDescriptionImagePaths())
+                .containsExactly("/tmp/pkg/主图/source.jpg", "/tmp/pkg/副图/1.jpg");
         assertThat(draft.getVariantAttributes()).containsEntry("颜色", List.of("黑色", "白色"));
         assertThat(draft.getVariantPreviewImages()).containsExactly("/tmp/pkg/尺码表/b.jpg", "/tmp/pkg/尺码表/a.jpg");
         assertThat(draft.getTransactionInfo()).hasSize(1);

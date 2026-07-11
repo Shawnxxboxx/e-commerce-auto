@@ -18,6 +18,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.time.LocalDateTime;
 
 @Component
@@ -46,6 +48,7 @@ public class ListingDraftGenerationWorker {
             draft.setChineseTitle(result.getChineseTitle());
             draft.setEnglishTitle(result.getEnglishTitle());
             draft.setProductMainImage(result.getMainImagePath());
+            draft.setDescriptionImagePaths(productImages(result.getMainImagePath(), draft.getProductDetailImages()));
             draft.setStatus(ListingDraftStatus.GENERATED);
 
             entity.setStatus(ListingDraftStatus.GENERATED.name());
@@ -71,6 +74,17 @@ public class ListingDraftGenerationWorker {
         entity.setLastErrorMessage(error.getMessage());
         entity.setUpdateTime(LocalDateTime.now());
         draftMapper.updateById(entity);
+    }
+
+    private List<String> productImages(String mainImage, List<String> detailImages) {
+        List<String> images = new ArrayList<>();
+        if (mainImage != null && !mainImage.isBlank()) {
+            images.add(mainImage);
+        }
+        if (detailImages != null) {
+            images.addAll(detailImages);
+        }
+        return images;
     }
 
     private String toJson(ListingDraft draft) {
