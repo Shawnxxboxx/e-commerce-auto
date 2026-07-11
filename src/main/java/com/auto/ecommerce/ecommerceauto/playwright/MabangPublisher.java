@@ -761,19 +761,15 @@ public class MabangPublisher {
             return;
         }
 
-        Locator uploadInput = frame.locator(
-                ".el-form-item:has(.el-form-item__label:has-text('产品包装图')) input[type='file']");
+        Locator packagingLabel = frame.getByText("产品包装图(Image of packaging)",
+                new FrameLocator.GetByTextOptions().setExact(true));
+        Locator uploadInput = packagingLabel
+                .locator("xpath=ancestor::*[.//input[@type='file']][1] input[type='file']");
         if (uploadInput.count() == 0) {
-            uploadInput = frame.locator(
-                    ".el-form-item:has-text('产品包装图') input[type='file']");
-        }
-        if (uploadInput.count() == 0) {
-            uploadInput = frame.locator(
-                    ".el-form-item:has-text('包装图') input[type='file']");
-        }
-        if (uploadInput.count() == 0) {
-            // 马帮当前页面通常将第 8 步挂在 box8，作为动态类目表单的兜底定位。
-            uploadInput = frame.locator("#box8 input[type='file']");
+            // 兼容马帮其他语言或页面版本只展示“包装图”的情况。
+            packagingLabel = frame.getByText("包装图", new FrameLocator.GetByTextOptions().setExact(true));
+            uploadInput = packagingLabel
+                    .locator("xpath=ancestor::*[.//input[@type='file']][1] input[type='file']");
         }
         if (uploadInput.count() == 0) {
             throw new RuntimeException("未找到资质合规区域的产品包装图上传控件");
