@@ -109,4 +109,13 @@ class CodexDraftAiGeneratorTest {
 
         assertThat(command).containsSubsequence("--image", "/tmp/pkg/主图/a.jpg", "--", "生成主图");
     }
+
+    @Test
+    void fallsBackToInstalledChatGptCodexWhenLegacyPathIsMissing() {
+        CodexDraftAiGenerator generator = new CodexDraftAiGenerator(new ObjectMapper());
+        generator.setCodexCommand("/Applications/Codex.app/Contents/Resources/codex");
+
+        assertThat(generator.resolveCodexCommand())
+                .isEqualTo("/Applications/ChatGPT.app/Contents/Resources/codex");
+    }
 }
