@@ -38,6 +38,7 @@ export interface ProductMaterialPackage {
   sizeChartImageName?: string;
   sizeChartImagePath?: string;
   sizeChartImagePaths?: string[];
+  packageImagePaths?: string[];
   transactionRows: MaterialTransactionRow[];
   mainImageSourcePaths: string[];
   detailImagePaths: string[];

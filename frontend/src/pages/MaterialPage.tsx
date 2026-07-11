@@ -250,6 +250,8 @@ export function MaterialPage({
                     <ImagePathPreview paths={material.detailImagePaths} emptyText="暂无副图/描述图" />
                     <Typography.Title level={5}>尺码表</Typography.Title>
                     <ImagePathPreview paths={sizeChartPaths} emptyText="暂无尺码表" />
+                    <Typography.Title level={5}>产品包装图</Typography.Title>
+                    <ImagePathPreview paths={material.packageImagePaths ?? []} emptyText="暂无产品包装图" />
                   </Space>
                 ),
               },
