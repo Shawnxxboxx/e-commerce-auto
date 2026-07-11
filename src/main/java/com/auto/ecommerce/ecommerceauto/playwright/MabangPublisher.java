@@ -227,16 +227,17 @@ public class MabangPublisher {
             }
 
             pageWait(3000);
+            // 关闭成功弹窗会连同当前刊登 Page 一起关闭，必须先保存截图和 URL。
+            String screenshotPath = "screenshots/publish-" + System.currentTimeMillis() + ".png";
+            String resultUrl = page.url();
+            page.screenshot(new Page.ScreenshotOptions()
+                    .setPath(Paths.get(screenshotPath)).setFullPage(true));
             closeSaveSuccessDialog(page, formFrame);
             pageWait(1000);
 
             long elapsed = System.currentTimeMillis() - startTime;
-            String screenshotPath = "screenshots/publish-" + System.currentTimeMillis() + ".png";
-            page.screenshot(new Page.ScreenshotOptions()
-                    .setPath(Paths.get(screenshotPath)).setFullPage(true));
-
             log.info("刊登完成，耗时 {}ms", elapsed);
-            return PublishResult.success("刊登成功", page.url(), elapsed, screenshotPath);
+            return PublishResult.success("刊登成功", resultUrl, elapsed, screenshotPath);
 
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - startTime;
