@@ -73,9 +73,12 @@ export interface ListingDraftPreview {
   chineseTitle: string;
   englishTitle: string;
   brand: string;
+  manufacturer?: string;
+  euResponsiblePerson?: string;
   productMainImage?: string;
   productSizeChartImage?: string;
   descriptionImagePaths: string[];
+  packageImagePaths?: string[];
   categoryAttributes: Record<string, string>;
   variantAttributes: Record<string, string[]>;
   transactionInfo: ListingDraftTransactionRow[];

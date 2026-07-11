@@ -123,6 +123,14 @@ function DraftDetail({
               <Input readOnly />
             </Form.Item>
           </Space>
+          <Space style={{ width: '100%' }} size="middle" align="start">
+            <Form.Item name="manufacturer" label="制造商" style={{ flex: 1 }}>
+              <Input readOnly />
+            </Form.Item>
+            <Form.Item name="euResponsiblePerson" label="欧盟责任人" style={{ flex: 1 }}>
+              <Input readOnly />
+            </Form.Item>
+          </Space>
           <Form.Item name="sourceUrl" label="来源 URL">
             <Input readOnly />
           </Form.Item>
@@ -143,6 +151,8 @@ function DraftDetail({
           <ImagePathPreview paths={draft.productSizeChartImage ? [draft.productSizeChartImage] : []} />
           <Typography.Title level={5}>描述图</Typography.Title>
           <ImagePathPreview paths={draft.descriptionImagePaths} />
+          <Typography.Title level={5}>产品包装图</Typography.Title>
+          <ImagePathPreview paths={draft.packageImagePaths ?? []} emptyText="暂无产品包装图" />
         </Space>
       </Card>
 
