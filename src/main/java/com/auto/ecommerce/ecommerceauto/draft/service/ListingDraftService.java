@@ -113,6 +113,7 @@ public class ListingDraftService {
     public MabangPublisher.PublishResult publish(String draftId) {
         ListingDraftEntity entity = requireEntity(draftId);
         ListingDraft draft = readDraft(entity);
+        enrichQualificationData(draft);
         List<String> errors = validator.validate(draft);
         if (!errors.isEmpty()) {
             throw new IllegalArgumentException(String.join("；", errors));
@@ -136,6 +137,31 @@ public class ListingDraftService {
         entity.setUpdateTime(LocalDateTime.now());
         draftMapper.updateById(entity);
         return result;
+    }
+
+    /**
+     * 兼容早期生成的草稿：资质字段接入前保存的 draftJson 没有这些数据，
+     * 发布前从素材包重新读取，避免第 8 步因字段为空而被直接跳过。
+     */
+    private void enrichQualificationData(ListingDraft draft) {
+        boolean missingManufacturer = draft.getManufacturer() == null || draft.getManufacturer().isBlank();
+        boolean missingResponsiblePerson = draft.getEuResponsiblePerson() == null
+                || draft.getEuResponsiblePerson().isBlank();
+        boolean missingPackageImages = draft.getPackageImagePaths() == null || draft.getPackageImagePaths().isEmpty();
+        if (!missingManufacturer && !missingResponsiblePerson && !missingPackageImages) {
+            return;
+        }
+
+        ProductMaterialPackage material = materialPackageParser.parse(Path.of(draft.getMaterialPackagePath()));
+        if (missingManufacturer) {
+            draft.setManufacturer(material.getManufacturer());
+        }
+        if (missingResponsiblePerson) {
+            draft.setEuResponsiblePerson(material.getEuResponsiblePerson());
+        }
+        if (missingPackageImages) {
+            draft.setPackageImagePaths(material.getPackageImagePaths());
+        }
     }
 
     private ListingDraftEntity requireEntity(String draftId) {

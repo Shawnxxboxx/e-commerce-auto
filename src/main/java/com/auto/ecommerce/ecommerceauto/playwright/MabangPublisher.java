@@ -203,24 +203,19 @@ public class MabangPublisher {
             }
 
             // ==================== 8. 资质合规与产品包装图 ====================
+            log.info("第8步资质合规数据: manufacturer={}, euResponsiblePerson={}, packageImages={}",
+                    request.getManufacturer(), request.getEuResponsiblePerson(),
+                    request.getPackageImagePaths() == null ? 0 : request.getPackageImagePaths().size());
             if (request.getPackageImagePaths() != null && !request.getPackageImagePaths().isEmpty()) {
                 uploadPackageImages(formFrame, request.getPackageImagePaths());
             }
 
-            if (request.getManufacturer() != null) {
-                try {
-                    selectManufacturer(formFrame, request.getManufacturer());
-                } catch (Exception e) {
-                    log.warn("制造商选择失败，跳过: {}", e.getMessage());
-                }
+            if (request.getManufacturer() != null && !request.getManufacturer().isBlank()) {
+                selectManufacturer(formFrame, request.getManufacturer());
             }
 
-            if (request.getEuResponsiblePerson() != null) {
-                try {
-                    selectEuResponsiblePerson(formFrame, request.getEuResponsiblePerson());
-                } catch (Exception e) {
-                    log.warn("欧盟责任人选择失败，跳过: {}", e.getMessage());
-                }
+            if (request.getEuResponsiblePerson() != null && !request.getEuResponsiblePerson().isBlank()) {
+                selectEuResponsiblePerson(formFrame, request.getEuResponsiblePerson());
             }
 
             // ==================== 8. 保存/刊登 ====================
