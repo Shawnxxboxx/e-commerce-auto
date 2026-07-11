@@ -759,12 +759,12 @@ public class MabangPublisher {
         Locator packagingLabel = frame.getByText("产品包装图(Image of packaging)",
                 new FrameLocator.GetByTextOptions().setExact(true));
         Locator uploadInput = packagingLabel
-                .locator("xpath=ancestor::*[.//input[@type='file']][1] input[type='file']");
+                .locator("xpath=ancestor::*[.//input[@type='file']][1]//input[@type='file']");
         if (uploadInput.count() == 0) {
             // 兼容马帮其他语言或页面版本只展示“包装图”的情况。
             packagingLabel = frame.getByText("包装图", new FrameLocator.GetByTextOptions().setExact(true));
             uploadInput = packagingLabel
-                    .locator("xpath=ancestor::*[.//input[@type='file']][1] input[type='file']");
+                    .locator("xpath=ancestor::*[.//input[@type='file']][1]//input[@type='file']");
         }
         if (uploadInput.count() == 0) {
             throw new RuntimeException("未找到资质合规区域的产品包装图上传控件");
