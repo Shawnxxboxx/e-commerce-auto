@@ -717,16 +717,16 @@ public class MabangPublisher {
             waitForProductImageCount(frame, 2);
         }
         if (!groups.detailImages().isEmpty()) {
-            for (int i = 0; i < groups.detailImages().size(); i++) {
-                // 只定位当前可见的“选择图片”新增槽位，避免命中页面隐藏的备用 input。
-                Locator nextSlot = frame.locator(
-                        ".draggable-box:has(.upload-icon:visible) input[type='file']").last();
-                if (nextSlot.count() == 0) {
-                    throw new RuntimeException("未找到产品图细节图新增上传控件");
-                }
-                nextSlot.setInputFiles(Paths.get(groups.detailImages().get(i)));
-                waitForProductImageCount(frame, i + 3);
+            // 细节图是 multiple 上传控件，必须一次性传入，否则后一次会覆盖前一次。
+            Locator detailInput = frame.locator(
+                    ".draggable-box:has-text('细节图') input[type='file'][multiple]").last();
+            if (detailInput.count() == 0) {
+                throw new RuntimeException("未找到产品图细节图新增上传控件");
             }
+            detailInput.setInputFiles(groups.detailImages().stream()
+                    .map(Paths::get)
+                    .toArray(java.nio.file.Path[]::new));
+            waitForProductImageCount(frame, groups.allImages().size());
         }
 
         int uploaded = waitForProductImageCount(frame, groups.allImages().size());
@@ -794,13 +794,12 @@ public class MabangPublisher {
         // Playwright 的 setInputFiles 可直接对隐藏 input 触发 change 上传，无需点击 "选择图片"。
         // 用 CSS class .description-image-group 精确定位该区域，避免 getByText 链式查找失败。
         Locator fileInput = frame.locator(".description-image-group input[type='file']").first();
-        for (String imagePath : imagePaths) {
-            fileInput.setInputFiles(Paths.get(imagePath));
-            pageWait(1200);
-            log.debug("已按顺序选择描述图: {}", imagePath);
-        }
+        // 描述图同样是 multiple 上传控件，一次性传入才能避免覆盖。
+        fileInput.setInputFiles(imagePaths.stream()
+                .map(Paths::get)
+                .toArray(java.nio.file.Path[]::new));
         log.debug("已按顺序选择 {} 张描述图，等待上传完成", imagePaths.size());
-        pageWait(2000);
+        pageWait(5000);
     }
 
     /**
