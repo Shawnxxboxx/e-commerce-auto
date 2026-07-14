@@ -717,15 +717,16 @@ public class MabangPublisher {
             waitForProductImageCount(frame, 2);
         }
         if (!groups.detailImages().isEmpty()) {
-            // 细节图是 multiple 上传控件，必须一次性传入，否则后一次会覆盖前一次。
+            // 细节图逐张上传，给页面异步处理和缩略图渲染留出时间，避免后续图片丢失。
             Locator detailInput = frame.locator(
                     ".draggable-box:has-text('细节图') input[type='file'][multiple]").last();
             if (detailInput.count() == 0) {
                 throw new RuntimeException("未找到产品图细节图新增上传控件");
             }
-            detailInput.setInputFiles(groups.detailImages().stream()
-                    .map(Paths::get)
-                    .toArray(java.nio.file.Path[]::new));
+            for (String detailImage : groups.detailImages()) {
+                detailInput.setInputFiles(Paths.get(detailImage));
+                pageWait(2000);
+            }
             waitForProductImageCount(frame, groups.allImages().size());
         }
 
@@ -774,7 +775,7 @@ public class MabangPublisher {
             if (count >= expected) {
                 return count;
             }
-            pageWait(1000);
+            pageWait(2000);
         }
         throw new RuntimeException("产品图上传数量不一致，期望 " + expected + " 张，页面实际 " + count + " 张");
     }
@@ -801,7 +802,7 @@ public class MabangPublisher {
                 throw new RuntimeException("未找到描述图新增上传控件");
             }
             fileInput.setInputFiles(Paths.get(imagePath));
-            pageWait(1500);
+            pageWait(2000);
             log.debug("已按顺序选择描述图: {}", imagePath);
         }
         log.debug("已按顺序选择 {} 张描述图，等待上传完成", imagePaths.size());
