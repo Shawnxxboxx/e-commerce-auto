@@ -724,8 +724,11 @@ public class MabangPublisher {
         }
         if (!groups.detailImages().isEmpty()) {
             for (int i = 0; i < groups.detailImages().size(); i++) {
-                // 每张图片上传后页面会重新生成“选择图片”控件，必须重新取最后一个 input。
-                Locator nextSlot = frame.locator(".draggable-box input[type='file']").last();
+                // 新增图片控件带 multiple 属性；已上传图片的更换控件没有，不能用普通 last()。
+                Locator nextSlot = frame.locator(".draggable-box input[type='file'][multiple]").last();
+                if (nextSlot.count() == 0) {
+                    throw new RuntimeException("未找到产品图新增上传控件（input[multiple]）");
+                }
                 nextSlot.setInputFiles(Paths.get(groups.detailImages().get(i)));
                 waitForProductImageCount(frame, i + 3);
             }
