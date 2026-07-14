@@ -718,10 +718,11 @@ public class MabangPublisher {
         }
         if (!groups.detailImages().isEmpty()) {
             for (int i = 0; i < groups.detailImages().size(); i++) {
-                // 新增图片控件带 multiple 属性；已上传图片的更换控件没有，不能用普通 last()。
-                Locator nextSlot = frame.locator(".draggable-box input[type='file'][multiple]").last();
+                // 只定位当前可见的“选择图片”新增槽位，避免命中页面隐藏的备用 input。
+                Locator nextSlot = frame.locator(
+                        ".draggable-box:has(.upload-icon:visible) input[type='file']").last();
                 if (nextSlot.count() == 0) {
-                    throw new RuntimeException("未找到产品图新增上传控件（input[multiple]）");
+                    throw new RuntimeException("未找到产品图细节图新增上传控件");
                 }
                 nextSlot.setInputFiles(Paths.get(groups.detailImages().get(i)));
                 waitForProductImageCount(frame, i + 3);
