@@ -50,8 +50,8 @@ public class ListingDraftFactory {
         return attributes.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
-                        // 变种属性统一使用竖线分隔，例如“颜色=套装|套装1|套装2”。
-                        entry -> Arrays.stream(entry.getValue().split("\\|"))
+                        // 支持竖线和逗号分隔，例如“颜色=套装|套装1|套装2”。
+                        entry -> Arrays.stream(entry.getValue().split("[,|]"))
                                 .map(String::trim)
                                 .filter(value -> !value.isBlank())
                                 .toList()));
