@@ -508,9 +508,10 @@ public class MabangPublisher {
                 item.waitFor(new Locator.WaitForOptions().setTimeout(4000));
                 Locator arrow = item.locator("i.has-children");
                 if (arrow.isVisible()) {
-                    arrow.click();          // 选中本级并展开子级
+                    // 类目行内部的 div 会拦截箭头的鼠标事件，使用 force 点击真实的树节点。
+                    arrow.click(new Locator.ClickOptions().setForce(true)); // 选中本级并展开子级
                 } else {
-                    item.click();           // 叶子节点直接选中
+                    item.click(new Locator.ClickOptions().setForce(true));  // 叶子节点直接选中
                 }
                 selected = level;
                 log.debug("已选类目层级: {}", level);
