@@ -50,7 +50,8 @@ public class ListingDraftFactory {
         return attributes.entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
-                        entry -> Arrays.stream(entry.getValue().split(","))
+                        // 变种属性支持“颜色=套装|套装1|套装2”格式，同时兼容旧的逗号格式。
+                        entry -> Arrays.stream(entry.getValue().split("[,|]"))
                                 .map(String::trim)
                                 .filter(value -> !value.isBlank())
                                 .toList()));

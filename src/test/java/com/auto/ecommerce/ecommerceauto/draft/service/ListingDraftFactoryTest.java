@@ -49,7 +49,7 @@ class ListingDraftFactoryTest {
         material.setEuResponsiblePerson("测试责任人");
         material.setPackageImagePaths(List.of("/tmp/pkg/包装图/1.jpg"));
         material.setCategoryAttributes(Map.of("材质", "棉"));
-        material.setVariantAttributes(Map.of("颜色", "黑色,白色"));
+        material.setVariantAttributes(Map.of("颜色", "黑色|白色|红色"));
         material.setSizeChartImagePath("/tmp/pkg/尺码表/b.jpg");
         material.setSizeChartImagePaths(List.of("/tmp/pkg/尺码表/a.jpg", "/tmp/pkg/尺码表/b.jpg"));
         material.setDetailImagePaths(List.of("/tmp/pkg/副图/1.jpg"));
@@ -72,7 +72,7 @@ class ListingDraftFactoryTest {
         assertThat(draft.getPackageImagePaths()).containsExactly("/tmp/pkg/包装图/1.jpg");
         assertThat(draft.getDescriptionImagePaths())
                 .containsExactly("/tmp/pkg/主图/source.jpg", "/tmp/pkg/副图/1.jpg");
-        assertThat(draft.getVariantAttributes()).containsEntry("颜色", List.of("黑色", "白色"));
+        assertThat(draft.getVariantAttributes()).containsEntry("颜色", List.of("黑色", "白色", "红色"));
         assertThat(draft.getVariantPreviewImages()).containsExactly("/tmp/pkg/尺码表/b.jpg", "/tmp/pkg/尺码表/a.jpg");
         assertThat(draft.getTransactionInfo()).hasSize(1);
         assertThat(draft.getTransactionInfo().getFirst().getSku()).isEqualTo("SKU-1");
