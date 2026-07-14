@@ -508,8 +508,8 @@ public class MabangPublisher {
                 item.waitFor(new Locator.WaitForOptions().setTimeout(4000));
                 Locator arrow = item.locator("i.has-children");
                 if (arrow.isVisible()) {
-                    // 类目行内部的 div 会拦截箭头的鼠标事件，使用 force 点击真实的树节点。
-                    arrow.click(new Locator.ClickOptions().setForce(true)); // 选中本级并展开子级
+                    // 马帮的展开事件绑定在整行 label 上，点击箭头本身不会触发展开。
+                    item.click(new Locator.ClickOptions().setForce(true)); // 选中本级并展开子级
                 } else {
                     item.click(new Locator.ClickOptions().setForce(true));  // 叶子节点直接选中
                 }
@@ -526,7 +526,7 @@ public class MabangPublisher {
                 }
                 log.warn("类目层级 '{}' 未找到，停留在 '{}'（完整路径: {}）。当前弹窗可见类目项: {}。原因: {}",
                         level, selected, categoryName, visibleItems, e.getMessage());
-                break;
+                throw new RuntimeException("类目层级未找到: " + level + "（完整路径: " + categoryName + "）", e);
             }
         }
         if (selected == null) {
