@@ -708,18 +708,12 @@ public class MabangPublisher {
         if (groups.allImages().isEmpty()) {
             return;
         }
-        Locator fileInputs = frame.locator(".draggable-box input[type='file']");
-        long slotCount = fileInputs.count();
-        if (slotCount == 0) {
-            throw new RuntimeException("未找到产品图上传槽位 .draggable-box input[type='file']");
-        }
-
         if (groups.mainImage() != null) {
-            fileInputs.nth(0).setInputFiles(Paths.get(groups.mainImage()));
+            productImageSlotInput(frame, "首图").setInputFiles(Paths.get(groups.mainImage()));
             waitForProductImageCount(frame, 1);
         }
         if (groups.sizeImage() != null) {
-            fileInputs.nth(1).setInputFiles(Paths.get(groups.sizeImage()));
+            productImageSlotInput(frame, "尺寸图").setInputFiles(Paths.get(groups.sizeImage()));
             waitForProductImageCount(frame, 2);
         }
         if (!groups.detailImages().isEmpty()) {
@@ -737,6 +731,17 @@ public class MabangPublisher {
         int uploaded = waitForProductImageCount(frame, groups.allImages().size());
         log.info("已上传 {} 张产品图，首图={}, 尺寸图={}, 细节图={}",
                 uploaded, groups.mainImage(), groups.sizeImage(), groups.detailImages());
+    }
+
+    /** 按页面槽位标题定位产品图上传 input，避免把第二个首图槽位当成尺寸图。 */
+    private Locator productImageSlotInput(FrameLocator frame, String slotLabel) {
+        Locator slot = frame.locator(".draggable-box")
+                .filter(new Locator.FilterOptions().setHasText(slotLabel))
+                .first();
+        if (slot.count() == 0 || slot.locator("input[type='file']").count() == 0) {
+            throw new RuntimeException("未找到产品图槽位: " + slotLabel);
+        }
+        return slot.locator("input[type='file']").first();
     }
 
     List<String> productImages(TikTokPublishRequest request) {
