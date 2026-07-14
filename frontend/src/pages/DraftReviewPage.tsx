@@ -40,7 +40,8 @@ function validateDraft(draft: ListingDraftPreview): string[] {
 }
 
 function canPublish(record: ListingDraftResponse) {
-  return record.status === 'GENERATED' && validateDraft(record.draft).length === 0;
+  // 状态只用于展示，不限制再次上架；仍需保证草稿基础数据完整。
+  return validateDraft(record.draft).length === 0;
 }
 
 function renderAttributes(attributes: Record<string, string | string[]>) {
