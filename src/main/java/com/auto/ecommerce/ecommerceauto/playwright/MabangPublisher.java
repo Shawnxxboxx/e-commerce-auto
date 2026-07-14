@@ -573,7 +573,7 @@ public class MabangPublisher {
                 continue;
             }
             try {
-                selectCategoryAttribute(frame, attrName, optionText);
+                fillCategoryAttribute(frame, attrName, optionText);
                 ok++;
             } catch (Exception e) {
                 fail++;
@@ -581,6 +581,26 @@ public class MabangPublisher {
             }
         }
         log.info("分类属性填写完成: 成功 {} 项, 失败 {} 项", ok, fail);
+    }
+
+    /** 分类属性可能是下拉框，也可能是普通文本输入框。 */
+    private void fillCategoryAttribute(FrameLocator frame, String attrName, String value) {
+        Locator formItem = frame.locator(".el-form-item")
+                .filter(new Locator.FilterOptions().setHasText(attrName))
+                .first();
+        Locator select = formItem.locator(".el-select");
+        if (select.count() > 0) {
+            selectCategoryAttribute(frame, attrName, value);
+            return;
+        }
+
+        Locator textInput = formItem.locator("input:not([readonly]), textarea").first();
+        if (textInput.count() == 0) {
+            throw new RuntimeException("未找到下拉框或文本输入框");
+        }
+        textInput.fill(value);
+        pageWait(300);
+        log.debug("已填写文本分类属性 [{}]: {}", attrName, value);
     }
 
     /**
