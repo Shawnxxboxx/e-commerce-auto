@@ -868,10 +868,8 @@ public class MabangPublisher {
 
             for (String value : attrValues) {
                 // 尝试直接勾选已渲染的 checkbox
-                Locator checkbox = block.locator(".el-checkbox")
-                        .filter(new Locator.FilterOptions().setHasText(value))
-                        .first();
-                if (checkbox.isVisible()) {
+                Locator checkbox = exactVariantCheckbox(block, value);
+                if (checkbox != null && checkbox.isVisible()) {
                     checkbox.click();
                     pageWait(200);
                     continue;
@@ -882,10 +880,8 @@ public class MabangPublisher {
                 if (searchInput.isVisible()) {
                     searchInput.fill(value);
                     pageWait(500);
-                    Locator filtered = block.locator(".el-checkbox")
-                            .filter(new Locator.FilterOptions().setHasText(value))
-                            .first();
-                    if (filtered.isVisible()) {
+                    Locator filtered = exactVariantCheckbox(block, value);
+                    if (filtered != null && filtered.isVisible()) {
                         filtered.click();
                         pageWait(200);
                         searchInput.fill(""); // 清空搜索
@@ -902,10 +898,8 @@ public class MabangPublisher {
                     block.locator("button:has-text('添加自定义')").click();
                     pageWait(300);
                     // 刚添加的可能在 checkbox 列表最后，勾选它
-                    Locator newCheckbox = block.locator(".el-checkbox")
-                            .filter(new Locator.FilterOptions().setHasText(value))
-                            .first();
-                    if (newCheckbox.isVisible()) {
+                    Locator newCheckbox = exactVariantCheckbox(block, value);
+                    if (newCheckbox != null && newCheckbox.isVisible()) {
                         newCheckbox.click();
                         pageWait(200);
                     }
@@ -934,6 +928,16 @@ public class MabangPublisher {
                 }
             }
         }
+    }
+
+    /** 变种选项必须完全匹配，避免“套装”误匹配到“套装1”。 */
+    private Locator exactVariantCheckbox(Locator block, String value) {
+        for (Locator checkbox : block.locator(".el-checkbox").all()) {
+            if (value.equals(checkbox.innerText().trim())) {
+                return checkbox;
+            }
+        }
+        return null;
     }
 
     /**
