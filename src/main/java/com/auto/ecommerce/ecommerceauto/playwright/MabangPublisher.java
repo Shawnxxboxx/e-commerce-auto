@@ -793,13 +793,19 @@ public class MabangPublisher {
         // 描述图区域是 Element UI 的 el-upload：文件 input[type=file] 始终在 DOM 中但被隐藏，
         // Playwright 的 setInputFiles 可直接对隐藏 input 触发 change 上传，无需点击 "选择图片"。
         // 用 CSS class .description-image-group 精确定位该区域，避免 getByText 链式查找失败。
-        Locator fileInput = frame.locator(".description-image-group input[type='file']").first();
-        // 描述图同样是 multiple 上传控件，一次性传入才能避免覆盖。
-        fileInput.setInputFiles(imagePaths.stream()
-                .map(Paths::get)
-                .toArray(java.nio.file.Path[]::new));
+        for (String imagePath : imagePaths) {
+            // 每次上传后组件会重新生成 input，必须重新定位当前新增 input，不能复用旧引用。
+            Locator fileInput = frame.locator(
+                    ".description-image-group input[type='file'][multiple]").last();
+            if (fileInput.count() == 0) {
+                throw new RuntimeException("未找到描述图新增上传控件");
+            }
+            fileInput.setInputFiles(Paths.get(imagePath));
+            pageWait(1500);
+            log.debug("已按顺序选择描述图: {}", imagePath);
+        }
         log.debug("已按顺序选择 {} 张描述图，等待上传完成", imagePaths.size());
-        pageWait(5000);
+        pageWait(2000);
     }
 
     /**
