@@ -718,11 +718,17 @@ public class MabangPublisher {
         }
         if (!groups.detailImages().isEmpty()) {
             // 每次上传后页面会重新渲染新增槽位，必须重新定位 input，不能复用旧 Locator。
-            for (String detailImage : groups.detailImages()) {
+            for (int index = 0; index < groups.detailImages().size(); index++) {
+                String detailImage = groups.detailImages().get(index);
                 Locator detailInput = frame.locator(
                         ".draggable-box:has-text('细节图') input[type='file'][multiple]").last();
-                detailInput.waitFor(new Locator.WaitForOptions().setTimeout(10000));
+                // 文件 input 按页面设计是 hidden，只等待 DOM 挂载，不等待可见。
+                detailInput.waitFor(new Locator.WaitForOptions()
+                        .setState(com.microsoft.playwright.options.WaitForSelectorState.ATTACHED)
+                        .setTimeout(10000));
                 detailInput.setInputFiles(Paths.get(detailImage));
+                // 先确认本张已经被页面接收，再开始下一张，避免上传事件被组件覆盖。
+                waitForProductImageCount(frame, index + 3);
                 pageWait(2000);
             }
             waitForProductImageCount(frame, groups.allImages().size());
@@ -800,7 +806,7 @@ public class MabangPublisher {
                 throw new RuntimeException("未找到描述图新增上传控件");
             }
             fileInput.setInputFiles(Paths.get(imagePath));
-            pageWait(2000);
+            pageWait(4000);
             log.debug("已按顺序选择描述图: {}", imagePath);
         }
         log.debug("已按顺序选择 {} 张描述图，等待上传完成", imagePaths.size());
@@ -940,7 +946,7 @@ public class MabangPublisher {
                 if (fileInput.count() > 0) {
                     fileInput.setInputFiles(Paths.get(images.get(i)));
                     log.debug("上传预览图 {} 到表格第 {} 行", images.get(i), i + 1);
-                    pageWait(2000);
+                    pageWait(4000);
                 }
             }
         }
