@@ -717,13 +717,11 @@ public class MabangPublisher {
             waitForProductImageCount(frame, 2);
         }
         if (!groups.detailImages().isEmpty()) {
-            // 细节图逐张上传，给页面异步处理和缩略图渲染留出时间，避免后续图片丢失。
-            Locator detailInput = frame.locator(
-                    ".draggable-box:has-text('细节图') input[type='file'][multiple]").last();
-            if (detailInput.count() == 0) {
-                throw new RuntimeException("未找到产品图细节图新增上传控件");
-            }
+            // 每次上传后页面会重新渲染新增槽位，必须重新定位 input，不能复用旧 Locator。
             for (String detailImage : groups.detailImages()) {
+                Locator detailInput = frame.locator(
+                        ".draggable-box:has-text('细节图') input[type='file'][multiple]").last();
+                detailInput.waitFor(new Locator.WaitForOptions().setTimeout(10000));
                 detailInput.setInputFiles(Paths.get(detailImage));
                 pageWait(2000);
             }
