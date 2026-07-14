@@ -716,18 +716,18 @@ public class MabangPublisher {
 
         if (groups.mainImage() != null) {
             fileInputs.nth(0).setInputFiles(Paths.get(groups.mainImage()));
-            pageWait(1000);
+            waitForProductImageCount(frame, 1);
         }
         if (groups.sizeImage() != null) {
             fileInputs.nth(1).setInputFiles(Paths.get(groups.sizeImage()));
-            pageWait(1000);
+            waitForProductImageCount(frame, 2);
         }
         if (!groups.detailImages().isEmpty()) {
-            fileInputs.nth(2).setInputFiles(
-                    groups.detailImages().stream()
-                            .map(Paths::get)
-                            .toArray(java.nio.file.Path[]::new)
-            );
+            for (int i = 0; i < groups.detailImages().size(); i++) {
+                // 每次只上传一张并等待页面计数增长，避免异步上传导致槽位顺序错乱。
+                fileInputs.nth(2).setInputFiles(Paths.get(groups.detailImages().get(i)));
+                waitForProductImageCount(frame, i + 3);
+            }
         }
 
         int uploaded = waitForProductImageCount(frame, groups.allImages().size());
@@ -784,13 +784,13 @@ public class MabangPublisher {
         // Playwright 的 setInputFiles 可直接对隐藏 input 触发 change 上传，无需点击 "选择图片"。
         // 用 CSS class .description-image-group 精确定位该区域，避免 getByText 链式查找失败。
         Locator fileInput = frame.locator(".description-image-group input[type='file']").first();
-        fileInput.setInputFiles(
-                imagePaths.stream()
-                        .map(Paths::get)
-                        .toArray(java.nio.file.Path[]::new)
-        );
-        log.debug("已选择 {} 张描述图，等待上传完成", imagePaths.size());
-        pageWait(5000); // 等待上传
+        for (String imagePath : imagePaths) {
+            fileInput.setInputFiles(Paths.get(imagePath));
+            pageWait(1200);
+            log.debug("已按顺序选择描述图: {}", imagePath);
+        }
+        log.debug("已按顺序选择 {} 张描述图，等待上传完成", imagePaths.size());
+        pageWait(2000);
     }
 
     /**
@@ -821,11 +821,13 @@ public class MabangPublisher {
             throw new RuntimeException("产品包装图上传控件不唯一，找到 " + uploadInput.count() + " 个");
         }
 
-        uploadInput.setInputFiles(imagePaths.stream()
-                .map(Paths::get)
-                .toArray(java.nio.file.Path[]::new));
-        log.info("已选择 {} 张产品包装图: {}", imagePaths.size(), imagePaths);
-        pageWait(3000);
+        for (String imagePath : imagePaths) {
+            uploadInput.setInputFiles(Paths.get(imagePath));
+            pageWait(1200);
+            log.info("已按顺序选择产品包装图: {}", imagePath);
+        }
+        log.info("已按顺序选择 {} 张产品包装图: {}", imagePaths.size(), imagePaths);
+        pageWait(2000);
     }
 
     /**
