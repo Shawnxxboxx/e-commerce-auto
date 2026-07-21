@@ -15,6 +15,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
@@ -23,6 +24,7 @@ import java.util.Set;
 public class MaterialPackageStorageService {
 
     private static final Set<String> ALLOWED_DIRECTORIES = Set.of("主图", "副图", "尺码表", "包装图");
+    private static final Set<String> ALLOWED_IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png");
     private static final Set<String> RESERVED_PACKAGE_IDS = Set.of(".tmp", ".trash");
 
     private final Path root;
@@ -127,7 +129,13 @@ public class MaterialPackageStorageService {
         if (relative.getNameCount() == 1) {
             return "属性信息.txt".equals(relative.getFileName().toString());
         }
-        return ALLOWED_DIRECTORIES.contains(relative.getName(0).toString());
+        if (relative.getNameCount() != 2 || !ALLOWED_DIRECTORIES.contains(relative.getName(0).toString())) {
+            return false;
+        }
+        String fileName = relative.getFileName().toString();
+        int extensionStart = fileName.lastIndexOf('.');
+        return extensionStart > 0
+                && ALLOWED_IMAGE_EXTENSIONS.contains(fileName.substring(extensionStart + 1).toLowerCase(Locale.ROOT));
     }
 
     private String checkedPackageId(String materialPackageId) {
