@@ -9,7 +9,11 @@ import java.util.Map;
 
 @Data
 public class ProductMaterialPackage {
+    private String materialPackageId;
+    private String originalDirectoryName;
     private String materialPackagePath;
+    private Integer fileCount;
+    private Long totalSize;
     private String productName;
     private String sourceUrl;
     private String shopName;

@@ -1,25 +1,28 @@
 package com.auto.ecommerce.ecommerceauto.material.controller;
 
-import com.auto.ecommerce.ecommerceauto.material.dto.ParseMaterialPackageRequest;
-import com.auto.ecommerce.ecommerceauto.material.model.ProductMaterialPackage;
-import com.auto.ecommerce.ecommerceauto.material.parser.MaterialPackageParser;
+import com.auto.ecommerce.ecommerceauto.material.dto.MaterialPackageResponse;
+import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Path;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/material-packages")
 @RequiredArgsConstructor
 public class MaterialPackageController {
 
-    private final MaterialPackageParser parser;
+    private final MaterialPackageService service;
 
-    @PostMapping("/parse")
-    public ProductMaterialPackage parse(@RequestBody ParseMaterialPackageRequest request) {
-        return parser.parse(Path.of(request.getMaterialPackagePath()));
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public MaterialPackageResponse upload(@RequestPart String originalDirectoryName,
+                                          @RequestPart List<MultipartFile> files,
+                                          @RequestPart List<String> relativePaths) {
+        return service.upload(originalDirectoryName, files, relativePaths);
     }
 }

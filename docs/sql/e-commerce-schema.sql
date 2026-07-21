@@ -30,3 +30,15 @@ CREATE TABLE IF NOT EXISTS listing_draft (
   create_time DATETIME NOT NULL,
   update_time DATETIME NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS material_package (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  material_package_id VARCHAR(100) NOT NULL UNIQUE,
+  original_directory_name VARCHAR(255) NOT NULL,
+  storage_path VARCHAR(1000) NOT NULL,
+  parsed_json JSON NOT NULL,
+  file_count INT NOT NULL,
+  total_size BIGINT NOT NULL,
+  create_time DATETIME NOT NULL,
+  update_time DATETIME NOT NULL
+);
