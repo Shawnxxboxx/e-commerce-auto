@@ -93,6 +93,24 @@ class MaterialPackageServiceTest {
         assertThat(storage.deletedPackageId).startsWith("material-");
     }
 
+    @Test
+    void removesStoredDirectoryWhenDatabaseInsertDoesNotAffectOneRow() {
+        RecordingMapper mapper = new RecordingMapper(0);
+        Path packagePath = Path.of("/tmp/materials/material-1");
+        List<MultipartFile> files = List.of(new MockMultipartFile("files", "属性信息.txt", "text/plain", new byte[0]));
+        List<String> paths = List.of("属性信息.txt");
+        StubStorage storage = new StubStorage(packagePath);
+        MaterialPackageService service = new MaterialPackageService(
+                mapper.proxy(), storage, new StubParser(parsedMaterial(packagePath)), new ObjectMapper());
+
+        assertThatThrownBy(() -> service.upload("错误素材", files, paths))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("素材包数据库写入失败");
+
+        assertThat(mapper.insertedEntity).isNotNull();
+        assertThat(storage.deletedPackageId).startsWith("material-");
+    }
+
     private static ProductMaterialPackage parsedMaterial(Path packagePath) {
         ProductMaterialPackage material = new ProductMaterialPackage();
         material.setProductName("眼镜");
@@ -106,7 +124,16 @@ class MaterialPackageServiceTest {
     }
 
     private static final class RecordingMapper {
+        private final int insertResult;
         private MaterialPackageEntity insertedEntity;
+
+        private RecordingMapper() {
+            this(1);
+        }
+
+        private RecordingMapper(int insertResult) {
+            this.insertResult = insertResult;
+        }
 
         private MaterialPackageMapper proxy() {
             return (MaterialPackageMapper) Proxy.newProxyInstance(
@@ -115,7 +142,7 @@ class MaterialPackageServiceTest {
                     (proxy, method, arguments) -> {
                         if ("insert".equals(method.getName())) {
                             insertedEntity = (MaterialPackageEntity) arguments[0];
-                            return 1;
+                            return insertResult;
                         }
                         throw new UnsupportedOperationException(method.getName());
                     });

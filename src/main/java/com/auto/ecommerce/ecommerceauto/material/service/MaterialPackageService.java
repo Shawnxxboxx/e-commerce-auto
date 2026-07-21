@@ -40,7 +40,9 @@ public class MaterialPackageService {
 
             MaterialPackageResponse response = toResponse(parsedMaterial, storedPath);
             MaterialPackageEntity entity = toEntity(parsedMaterial, storedPath);
-            mapper.insert(entity);
+            if (mapper.insert(entity) != 1) {
+                throw new IllegalStateException("素材包数据库写入失败");
+            }
             return response;
         } catch (RuntimeException exception) {
             deleteStoredPackage(materialPackageId, exception);
