@@ -73,6 +73,26 @@ class MaterialPackageServiceTest {
         assertThat(mapper.insertedEntity).isNull();
     }
 
+    @Test
+    void doesNotPersistWhenResponseConversionFails() {
+        RecordingMapper mapper = new RecordingMapper();
+        Path packagePath = Path.of("/tmp/materials/material-1");
+        List<MultipartFile> files = List.of(new MockMultipartFile("files", "属性信息.txt", "text/plain", new byte[0]));
+        List<String> paths = List.of("属性信息.txt");
+        ProductMaterialPackage parsedMaterial = parsedMaterial(packagePath);
+        parsedMaterial.setMainImageSourcePaths(List.of("/tmp/outside.jpg"));
+        StubStorage storage = new StubStorage(packagePath);
+        MaterialPackageService service = new MaterialPackageService(
+                mapper.proxy(), storage, new StubParser(parsedMaterial), new ObjectMapper());
+
+        assertThatThrownBy(() -> service.upload("错误素材", files, paths))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("素材图片路径不在素材包目录内");
+
+        assertThat(mapper.insertedEntity).isNull();
+        assertThat(storage.deletedPackageId).startsWith("material-");
+    }
+
     private static ProductMaterialPackage parsedMaterial(Path packagePath) {
         ProductMaterialPackage material = new ProductMaterialPackage();
         material.setProductName("眼镜");

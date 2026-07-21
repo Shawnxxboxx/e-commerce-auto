@@ -60,11 +60,26 @@ public class MaterialPackageParser {
         if (sizeChartImageName == null || sizeChartImageName.isBlank()) {
             return;
         }
-        Path sizeChartImagePath = sizeChartDir.resolve(sizeChartImageName).normalize();
+        Path sizeChartImagePath = checkedSizeChartImagePath(sizeChartDir, sizeChartImageName);
         if (!Files.isRegularFile(sizeChartImagePath)) {
             throw new IllegalArgumentException("尺码表图片不存在: " + sizeChartImagePath);
         }
         material.setSizeChartImagePath(sizeChartImagePath.toString());
+    }
+
+    private Path checkedSizeChartImagePath(Path sizeChartDir, String imageName) {
+        Path relative = Path.of(imageName).normalize();
+        if (relative.isAbsolute() || relative.getNameCount() != 1
+                || imageName.contains("/") || imageName.contains("\\")
+                || ".".equals(relative.toString()) || "..".equals(relative.toString())
+                || !isSupportedImage(relative)) {
+            throw new IllegalArgumentException("非法尺码表图片名称: " + imageName);
+        }
+        Path resolved = sizeChartDir.resolve(relative).normalize();
+        if (!resolved.startsWith(sizeChartDir)) {
+            throw new IllegalArgumentException("非法尺码表图片名称: " + imageName);
+        }
+        return resolved;
     }
 
     private List<String> listImages(Path directory) {

@@ -3,11 +3,15 @@ package com.auto.ecommerce.ecommerceauto.material.parser;
 import com.auto.ecommerce.ecommerceauto.material.model.ProductMaterialPackage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MaterialPackageParserTest {
 
@@ -124,5 +128,58 @@ class MaterialPackageParserTest {
 
         assertThat(material.getSizeChartImagePath())
                 .isEqualTo(packageDir.resolve("尺码表").resolve("size.jpg").toAbsolutePath().toString());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"../escape.jpg", "nested/size.jpg", "size.gif", "<absolute>"})
+    void rejectsUnsafeSizeChartImageNames(String suppliedName) throws Exception {
+        String sizeChartImageName = "<absolute>".equals(suppliedName)
+                ? tempDir.resolve("outside.jpg").toAbsolutePath().toString()
+                : suppliedName;
+        Path packageDir = createMaterialPackage(sizeChartImageName);
+        Path target = Path.of(sizeChartImageName).isAbsolute()
+                ? Path.of(sizeChartImageName)
+                : packageDir.resolve("尺码表").resolve(sizeChartImageName).normalize();
+        Files.createDirectories(target.getParent());
+        Files.writeString(target, "image");
+
+        MaterialPackageParser parser = new MaterialPackageParser(new AttributeInfoTextParser());
+
+        assertThatThrownBy(() -> parser.parse(packageDir))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("非法尺码表图片名称");
+    }
+
+    private Path createMaterialPackage(String sizeChartImageName) throws IOException {
+        Path packageDir = tempDir.resolve("素材-" + sizeChartImageName.hashCode());
+        Files.createDirectories(packageDir.resolve("主图"));
+        Files.createDirectories(packageDir.resolve("副图"));
+        Files.createDirectories(packageDir.resolve("尺码表"));
+        Files.createDirectories(packageDir.resolve("包装图"));
+        Files.writeString(packageDir.resolve("主图/1.jpg"), "image");
+        Files.writeString(packageDir.resolve("副图/1.jpg"), "image");
+        Files.writeString(packageDir.resolve("属性信息.txt"), """
+                [产品信息]
+                产品名称=测试商品
+                来源URL=
+                店铺=测试店铺
+                类目=测试类目
+                品牌=测试品牌
+
+                [分类属性]
+                材质=测试材质
+
+                [资质合规]
+                制造商=测试制造商
+                欧盟责任人=测试责任人
+
+                [变种属性]
+                尺码表图片=%s
+
+                [交易信息]
+                颜色|商品货号(SKC)|备货模式|尺码|SKU货号|不含税价(CNY)|库存|长|宽|高|重量(g)
+                黑色|SKC-1|JIT|均码|SKU-1|1|1|1|1|1|1
+                """.formatted(sizeChartImageName));
+        return packageDir;
     }
 }

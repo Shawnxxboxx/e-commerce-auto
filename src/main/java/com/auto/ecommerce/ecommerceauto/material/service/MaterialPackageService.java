@@ -38,9 +38,10 @@ public class MaterialPackageService {
             parsedMaterial.setFileCount(files.size());
             parsedMaterial.setTotalSize(totalSize(files));
 
+            MaterialPackageResponse response = toResponse(parsedMaterial, storedPath);
             MaterialPackageEntity entity = toEntity(parsedMaterial, storedPath);
             mapper.insert(entity);
-            return toResponse(parsedMaterial, storedPath);
+            return response;
         } catch (RuntimeException exception) {
             deleteStoredPackage(materialPackageId, exception);
             throw exception;
