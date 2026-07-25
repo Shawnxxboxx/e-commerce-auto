@@ -8,6 +8,7 @@ import com.auto.ecommerce.ecommerceauto.draft.model.ListingDraft;
 import com.auto.ecommerce.ecommerceauto.draft.model.ListingDraftStatus;
 import com.auto.ecommerce.ecommerceauto.material.model.ProductMaterialPackage;
 import com.auto.ecommerce.ecommerceauto.material.parser.MaterialPackageParser;
+import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageService;
 import com.auto.ecommerce.ecommerceauto.template.entity.SopTemplateEntity;
 import com.auto.ecommerce.ecommerceauto.template.mapper.SopTemplateMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -29,6 +30,7 @@ public class ListingDraftGenerationWorker {
     private final ListingDraftMapper draftMapper;
     private final SopTemplateMapper templateMapper;
     private final MaterialPackageParser materialPackageParser;
+    private final MaterialPackageService materialPackageService;
     private final ListingDraftFactory draftFactory;
     private final ListingDraftAiGenerator aiGenerator;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -42,8 +44,12 @@ public class ListingDraftGenerationWorker {
         }
         try {
             SopTemplateEntity template = templateMapper.selectById(Long.valueOf(entity.getTemplateId()));
-            ProductMaterialPackage material = materialPackageParser.parse(Path.of(entity.getMaterialPackagePath()));
+            Path materialPackagePath = materialPackagePath(entity);
+            ProductMaterialPackage material = materialPackageParser.parse(materialPackagePath);
+            material.setMaterialPackageId(entity.getMaterialPackageId());
+            material.setMaterialPackagePath(materialPackagePath.toString());
             ListingDraft draft = draftFactory.create(draftId, template, material, ListingDraftStatus.GENERATING);
+            draft.setMaterialPackageId(entity.getMaterialPackageId());
             AiDraftGenerationResult result = aiGenerator.generate(template, material);
             draft.setChineseTitle(result.getChineseTitle());
             draft.setEnglishTitle(result.getEnglishTitle());
@@ -66,6 +72,13 @@ public class ListingDraftGenerationWorker {
         return draftMapper.selectOne(new LambdaQueryWrapper<ListingDraftEntity>()
                 .eq(ListingDraftEntity::getDraftId, draftId)
                 .last("limit 1"));
+    }
+
+    private Path materialPackagePath(ListingDraftEntity entity) {
+        if (entity.getMaterialPackageId() != null && !entity.getMaterialPackageId().isBlank()) {
+            return materialPackageService.packagePath(entity.getMaterialPackageId());
+        }
+        return Path.of(entity.getMaterialPackagePath());
     }
 
     private void markFailed(ListingDraftEntity entity, Exception error) {

@@ -17,6 +17,7 @@ public class ListingDraftEntity {
     private String templateName;
     private String titlePromptSnapshot;
     private String mainImagePromptSnapshot;
+    private String materialPackageId;
     private String materialPackagePath;
     private String status;
     private String draftJson;

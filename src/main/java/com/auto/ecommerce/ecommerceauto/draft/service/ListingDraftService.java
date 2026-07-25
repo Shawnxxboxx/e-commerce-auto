@@ -11,6 +11,7 @@ import com.auto.ecommerce.ecommerceauto.draft.publish.ListingDraftToTikTokPublis
 import com.auto.ecommerce.ecommerceauto.draft.validation.ListingDraftValidator;
 import com.auto.ecommerce.ecommerceauto.material.model.ProductMaterialPackage;
 import com.auto.ecommerce.ecommerceauto.material.parser.MaterialPackageParser;
+import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageService;
 import com.auto.ecommerce.ecommerceauto.playwright.MabangPublisher;
 import com.auto.ecommerce.ecommerceauto.playwright.TikTokPublishRequest;
 import com.auto.ecommerce.ecommerceauto.template.entity.SopTemplateEntity;
@@ -34,6 +35,7 @@ public class ListingDraftService {
     private final ListingDraftMapper draftMapper;
     private final SopTemplateMapper templateMapper;
     private final MaterialPackageParser materialPackageParser;
+    private final MaterialPackageService materialPackageService;
     private final ListingDraftFactory draftFactory;
     private final ListingDraftGenerationWorker generationWorker;
     private final ListingDraftValidator validator;
@@ -45,8 +47,12 @@ public class ListingDraftService {
         if (request.getTemplateId() == null) {
             throw new IllegalArgumentException("请选择 SOP 模板");
         }
-        if (request.getMaterialPackagePath() == null || request.getMaterialPackagePath().isBlank()) {
-            throw new IllegalArgumentException("请选择素材包目录");
+        if (request.getMaterialPackageId() == null || request.getMaterialPackageId().isBlank()) {
+            throw new IllegalArgumentException("请选择素材包");
+        }
+        if (draftMapper.selectCount(new LambdaQueryWrapper<ListingDraftEntity>()
+                .eq(ListingDraftEntity::getMaterialPackageId, request.getMaterialPackageId())) > 0) {
+            throw new IllegalArgumentException("该素材包已生成草稿");
         }
 
         SopTemplateEntity template = templateMapper.selectById(request.getTemplateId());
@@ -54,9 +60,13 @@ public class ListingDraftService {
             throw new IllegalArgumentException("SOP 模板不存在: " + request.getTemplateId());
         }
 
-        ProductMaterialPackage material = materialPackageParser.parse(Path.of(request.getMaterialPackagePath()));
+        Path materialPackagePath = Path.of(materialPackageService.require(request.getMaterialPackageId()).getStoragePath());
+        ProductMaterialPackage material = materialPackageParser.parse(materialPackagePath);
+        material.setMaterialPackageId(request.getMaterialPackageId());
+        material.setMaterialPackagePath(materialPackagePath.toString());
         String draftId = "draft-" + UUID.randomUUID();
         ListingDraft draft = draftFactory.create(draftId, template, material, ListingDraftStatus.GENERATING);
+        draft.setMaterialPackageId(request.getMaterialPackageId());
         ListingDraftEntity entity = toEntity(draft);
         draftMapper.insert(entity);
         // 先返回 draftId，前端进入草稿页轮询生成状态。
@@ -198,6 +208,7 @@ public class ListingDraftService {
         entity.setTemplateName(draft.getTemplateName());
         entity.setTitlePromptSnapshot(draft.getTitlePromptSnapshot());
         entity.setMainImagePromptSnapshot(draft.getMainImagePromptSnapshot());
+        entity.setMaterialPackageId(draft.getMaterialPackageId());
         entity.setMaterialPackagePath(draft.getMaterialPackagePath());
         entity.setStatus(draft.getStatus().name());
         entity.setDraftJson(toJson(draft));

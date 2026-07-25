@@ -14,6 +14,7 @@ public class ListingDraft {
     private String templateName;
     private String titlePromptSnapshot;
     private String mainImagePromptSnapshot;
+    private String materialPackageId;
     private String materialPackagePath;
     private ListingDraftStatus status = ListingDraftStatus.GENERATED;
 

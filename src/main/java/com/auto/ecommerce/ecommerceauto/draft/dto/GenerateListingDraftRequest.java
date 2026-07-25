@@ -5,5 +5,5 @@ import lombok.Data;
 @Data
 public class GenerateListingDraftRequest {
     private Long templateId;
-    private String materialPackagePath;
+    private String materialPackageId;
 }

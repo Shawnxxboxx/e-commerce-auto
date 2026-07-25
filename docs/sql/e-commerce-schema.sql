@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS listing_draft (
   update_time DATETIME NOT NULL
 );
 
+ALTER TABLE listing_draft
+  ADD COLUMN material_package_id VARCHAR(100) NULL,
+  ADD UNIQUE INDEX uk_listing_draft_material_package_id (material_package_id);
+
 CREATE TABLE IF NOT EXISTS material_package (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   material_package_id VARCHAR(100) NOT NULL UNIQUE,
