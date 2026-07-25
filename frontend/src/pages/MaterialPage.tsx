@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Button, Descriptions, Empty, Form, Input, Select, Space, Table, Tabs, Typography, message } from 'antd';
+import { useEffect, useRef, useState, type InputHTMLAttributes } from 'react';
+import { Button, Descriptions, Empty, Progress, Select, Space, Table, Tabs, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { chooseLocalDirectory, generateListingDraft, listTemplates, parseMaterialPackage } from '../api/client';
+import { generateListingDraft, listTemplates, uploadMaterialPackage, type SelectedMaterialFile } from '../api/client';
 import type { MaterialTransactionRow, ProductMaterialPackage, SopTemplate } from '../api/types';
 import { ImagePathPreview } from '../components/ImagePathPreview';
 
@@ -11,10 +11,6 @@ interface MaterialPageProps {
   onTemplateSelect: (template: SopTemplate | null) => void;
   onMaterialParsed: (material: ProductMaterialPackage) => void;
   onDraftStarted: (draftId: string) => void;
-}
-
-interface ParseFormValues {
-  materialPackagePath: string;
 }
 
 function entriesOf(attributes: Record<string, string>) {
@@ -102,6 +98,28 @@ const transactionColumns: ColumnsType<MaterialTransactionRow> = [
   },
 ];
 
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024;
+const IMAGE_DIRECTORIES = new Set(['主图', '副图', '尺码表', '包装图']);
+
+function directoryNameOf(file: File): string {
+  return file.webkitRelativePath.split('/')[0] || '素材包';
+}
+
+function allowedRelativePath(file: File): string | null {
+  const segments = file.webkitRelativePath.split('/').filter(Boolean);
+  const relativePath = segments.slice(1);
+
+  if (segments.length < 2 || segments.some((segment) => segment.startsWith('.'))) return null;
+  if (relativePath.length === 1 && relativePath[0] === '属性信息.txt') return relativePath[0];
+  if (relativePath.length !== 2 || !IMAGE_DIRECTORIES.has(relativePath[0])) return null;
+
+  return /\.(jpe?g|png)$/i.test(relativePath[1]) ? relativePath.join('/') : null;
+}
+
+function formattedSize(size: number): string {
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export function MaterialPage({
   material,
   selectedTemplate,
@@ -111,10 +129,12 @@ export function MaterialPage({
 }: MaterialPageProps) {
   const [templates, setTemplates] = useState<SopTemplate[]>([]);
   const [templateLoading, setTemplateLoading] = useState(false);
-  const [choosingDirectory, setChoosingDirectory] = useState(false);
-  const [parsing, setParsing] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedMaterialFile[]>([]);
+  const [directoryName, setDirectoryName] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [form] = Form.useForm<ParseFormValues>();
+  const directoryInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTemplateLoading(true);
@@ -124,39 +144,55 @@ export function MaterialPage({
       .finally(() => setTemplateLoading(false));
   }, []);
 
-  const chooseDirectory = async () => {
-    setChoosingDirectory(true);
-    try {
-      const { path } = await chooseLocalDirectory();
-      form.setFieldValue('materialPackagePath', path);
-    } catch (error) {
-      message.error(error instanceof Error ? error.message : '选择目录失败');
-    } finally {
-      setChoosingDirectory(false);
+  const selectDirectory = (files: File[]) => {
+    const filesToUpload = files.flatMap((file): SelectedMaterialFile[] => {
+      const relativePath = allowedRelativePath(file);
+      return relativePath ? [{ file, relativePath }] : [];
+    });
+    const totalSize = filesToUpload.reduce((sum, { file }) => sum + file.size, 0);
+
+    if (directoryInputRef.current) directoryInputRef.current.value = '';
+    setUploadProgress(0);
+    if (totalSize > MAX_UPLOAD_SIZE) {
+      setSelectedFiles([]);
+      setDirectoryName(null);
+      message.error('素材包不能超过 50MB');
+      return;
     }
+    if (filesToUpload.length === 0) {
+      setSelectedFiles([]);
+      setDirectoryName(null);
+      message.warning('未找到可上传的属性信息或素材图片');
+      return;
+    }
+
+    setSelectedFiles(filesToUpload);
+    setDirectoryName(directoryNameOf(files[0]));
   };
 
-  const parseMaterial = async (values: ParseFormValues) => {
-    setParsing(true);
+  const uploadMaterial = async () => {
+    if (!directoryName || selectedFiles.length === 0) return;
+    setUploading(true);
     try {
-      const parsed = await parseMaterialPackage(values.materialPackagePath.trim());
+      const parsed = await uploadMaterialPackage(directoryName, selectedFiles, setUploadProgress);
       onMaterialParsed(parsed);
-      message.success('素材包解析完成');
+      setUploadProgress(100);
+      message.success('素材包上传并解析完成');
     } catch (error) {
-      message.error(error instanceof Error ? error.message : '素材包解析失败');
+      message.error(error instanceof Error ? error.message : '素材包上传失败');
     } finally {
-      setParsing(false);
+      setUploading(false);
     }
   };
 
   const startAiGeneration = async () => {
-    if (!selectedTemplate || !material?.materialPackagePath) {
+    if (!selectedTemplate || !material?.materialPackageId) {
       message.warning('请先选择 SOP 模板并解析素材包');
       return;
     }
     setGenerating(true);
     try {
-      const draft = await generateListingDraft(selectedTemplate.id, material.materialPackagePath);
+      const draft = await generateListingDraft(selectedTemplate.id, material.materialPackageId);
       message.success('AI 生成任务已开始');
       onDraftStarted(draft.draftId);
     } catch (error) {
@@ -192,28 +228,31 @@ export function MaterialPage({
         />
       </Space>
 
-      <Form form={form} layout="inline" onFinish={parseMaterial}>
-        <Form.Item
-          name="materialPackagePath"
-          rules={[{ required: true, whitespace: true, message: '请选择或输入素材包目录' }]}
-          style={{ flex: 1 }}
-        >
-          <Input placeholder="素材包目录路径" />
-        </Form.Item>
-        <Form.Item>
-          <Button loading={choosingDirectory} onClick={chooseDirectory}>
-            选择目录
+      <input
+        ref={directoryInputRef}
+        type="file"
+        multiple
+        hidden
+        {...({ webkitdirectory: '' } as InputHTMLAttributes<HTMLInputElement>)}
+        onChange={(event) => selectDirectory(Array.from(event.target.files ?? []))}
+      />
+      <Space direction="vertical" size="small" style={{ width: '100%' }}>
+        <Space wrap>
+          <Button onClick={() => directoryInputRef.current?.click()}>选择目录</Button>
+          <Button type="primary" loading={uploading} disabled={selectedFiles.length === 0} onClick={uploadMaterial}>
+            上传并解析
           </Button>
-        </Form.Item>
-        <Form.Item>
-          <Button type="primary" htmlType="submit" loading={parsing}>
-            解析素材包
-          </Button>
-        </Form.Item>
-      </Form>
+        </Space>
+        {directoryName && (
+          <Typography.Text type="secondary">
+            {directoryName} · {selectedFiles.length} 个文件 · {formattedSize(selectedFiles.reduce((sum, { file }) => sum + file.size, 0))}
+          </Typography.Text>
+        )}
+        {directoryName && <Progress percent={uploadProgress} size="small" />}
+      </Space>
 
       {!material ? (
-        <Typography.Text type="secondary">请先选择 SOP 模板，再选择或输入本地素材包目录并解析。</Typography.Text>
+        <Typography.Text type="secondary">请先选择 SOP 模板，再上传本地素材包目录。</Typography.Text>
       ) : (
         <>
           <Descriptions bordered column={2} size="small" title="产品信息">
@@ -245,13 +284,13 @@ export function MaterialPage({
                 children: (
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     <Typography.Title level={5}>主图来源</Typography.Title>
-                    <ImagePathPreview paths={material.mainImageSourcePaths} emptyText="暂无主图来源" />
+                    <ImagePathPreview materialPackageId={material.materialPackageId} paths={material.mainImageSourcePaths} emptyText="暂无主图来源" />
                     <Typography.Title level={5}>副图/描述图</Typography.Title>
-                    <ImagePathPreview paths={material.detailImagePaths} emptyText="暂无副图/描述图" />
+                    <ImagePathPreview materialPackageId={material.materialPackageId} paths={material.detailImagePaths} emptyText="暂无副图/描述图" />
                     <Typography.Title level={5}>尺码表</Typography.Title>
-                    <ImagePathPreview paths={sizeChartPaths} emptyText="暂无尺码表" />
+                    <ImagePathPreview materialPackageId={material.materialPackageId} paths={sizeChartPaths} emptyText="暂无尺码表" />
                     <Typography.Title level={5}>产品包装图</Typography.Title>
-                    <ImagePathPreview paths={material.packageImagePaths ?? []} emptyText="暂无产品包装图" />
+                    <ImagePathPreview materialPackageId={material.materialPackageId} paths={material.packageImagePaths ?? []} emptyText="暂无产品包装图" />
                   </Space>
                 ),
               },

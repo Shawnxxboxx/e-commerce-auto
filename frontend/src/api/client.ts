@@ -42,7 +42,35 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
     throw new Error(errorMessageFromText(text, response.status));
   }
 
-  return response.json() as Promise<T>;
+  return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
+}
+
+export interface SelectedMaterialFile {
+  file: File;
+  relativePath: string;
+}
+
+function multipartRequest<T>(url: string, form: FormData, onProgress: (percent: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+    };
+    xhr.onerror = () => reject(new Error('上传失败，请检查网络后重试'));
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(errorMessageFromText(xhr.responseText, xhr.status)));
+        return;
+      }
+      try {
+        resolve(JSON.parse(xhr.responseText) as T);
+      } catch {
+        reject(new Error('上传响应格式错误'));
+      }
+    };
+    xhr.send(form);
+  });
 }
 
 export function listTemplates(): Promise<SopTemplate[]> {
@@ -68,17 +96,24 @@ export function updateTemplate(
   });
 }
 
-export function parseMaterialPackage(materialPackagePath: string): Promise<ProductMaterialPackage> {
-  return request<ProductMaterialPackage>('/api/material-packages/parse', {
-    method: 'POST',
-    body: JSON.stringify({ materialPackagePath }),
+export function uploadMaterialPackage(
+  directoryName: string,
+  files: SelectedMaterialFile[],
+  onProgress: (percent: number) => void,
+): Promise<ProductMaterialPackage> {
+  const form = new FormData();
+  form.append('originalDirectoryName', directoryName);
+  files.forEach(({ file, relativePath }) => {
+    form.append('files', file);
+    form.append('relativePaths', relativePath);
   });
+  return multipartRequest<ProductMaterialPackage>('/api/material-packages', form, onProgress);
 }
 
-export function generateListingDraft(templateId: number, materialPackagePath: string): Promise<ListingDraftResponse> {
+export function generateListingDraft(templateId: number, materialPackageId: string): Promise<ListingDraftResponse> {
   return request<ListingDraftResponse>('/api/listing-drafts/generate', {
     method: 'POST',
-    body: JSON.stringify({ templateId, materialPackagePath }),
+    body: JSON.stringify({ templateId, materialPackageId }),
   });
 }
 
@@ -104,10 +139,12 @@ export function publishListingDraft(draftId: string): Promise<MabangPublishResul
   });
 }
 
-export function chooseLocalDirectory(): Promise<{ path: string }> {
-  return request<{ path: string }>('/api/local-files/choose-directory');
+export function deleteListingDraft(draftId: string): Promise<void> {
+  return request<void>(`/api/listing-drafts/${encodeURIComponent(draftId)}`, {
+    method: 'DELETE',
+  });
 }
 
-export function localImageUrl(path: string): string {
-  return `/api/local-files/image?path=${encodeURIComponent(path)}`;
+export function materialImageUrl(materialPackageId: string, relativePath: string): string {
+  return `/api/material-packages/${encodeURIComponent(materialPackageId)}/files?path=${encodeURIComponent(relativePath)}`;
 }

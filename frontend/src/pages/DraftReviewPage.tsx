@@ -1,7 +1,8 @@
-import { Alert, Button, Card, Descriptions, Drawer, Empty, Form, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Descriptions, Drawer, Empty, Form, Input, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import { useEffect, useState } from 'react';
-import { getListingDraft, listListingDrafts, publishListingDraft } from '../api/client';
+import { deleteListingDraft, getListingDraft, listListingDrafts, publishListingDraft } from '../api/client';
 import type { ListingDraftPreview, ListingDraftResponse, ListingDraftTransactionRow } from '../api/types';
 import { ImagePathPreview } from '../components/ImagePathPreview';
 
@@ -42,6 +43,10 @@ function validateDraft(draft: ListingDraftPreview): string[] {
 function canPublish(record: ListingDraftResponse) {
   // 状态只用于展示，不限制再次上架；仍需保证草稿基础数据完整。
   return validateDraft(record.draft).length === 0;
+}
+
+function canDelete(record: ListingDraftResponse) {
+  return record.status !== 'GENERATING' && record.status !== 'PUBLISHING';
 }
 
 function renderAttributes(attributes: Record<string, string | string[]>) {
@@ -106,7 +111,7 @@ function DraftDetail({
           <Descriptions.Item label="草稿 ID">{response.draftId}</Descriptions.Item>
           <Descriptions.Item label="状态">{statusText[response.status] ?? response.status}</Descriptions.Item>
           <Descriptions.Item label="模板名称">{draft.templateName ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="素材包">{draft.materialPackagePath ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="素材包">{draft.materialPackageId ?? '-'}</Descriptions.Item>
           <Descriptions.Item label="标题提示词" span={2}>
             {draft.titlePromptSnapshot ?? '-'}
           </Descriptions.Item>
@@ -152,13 +157,13 @@ function DraftDetail({
       <Card title="图片审核">
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <Typography.Title level={5}>产品主图</Typography.Title>
-          <ImagePathPreview paths={draft.productMainImage ? [draft.productMainImage] : []} />
+          <ImagePathPreview materialPackageId={draft.materialPackageId} paths={draft.productMainImage ? [draft.productMainImage] : []} />
           <Typography.Title level={5}>尺码表</Typography.Title>
-          <ImagePathPreview paths={sizeChartPaths} emptyText="暂无尺码表" />
+          <ImagePathPreview materialPackageId={draft.materialPackageId} paths={sizeChartPaths} emptyText="暂无尺码表" />
           <Typography.Title level={5}>描述图</Typography.Title>
-          <ImagePathPreview paths={draft.descriptionImagePaths} />
+          <ImagePathPreview materialPackageId={draft.materialPackageId} paths={draft.descriptionImagePaths} />
           <Typography.Title level={5}>产品包装图</Typography.Title>
-          <ImagePathPreview paths={draft.packageImagePaths ?? []} emptyText="暂无产品包装图" />
+          <ImagePathPreview materialPackageId={draft.materialPackageId} paths={draft.packageImagePaths ?? []} emptyText="暂无产品包装图" />
         </Space>
       </Card>
 
@@ -190,6 +195,7 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
   const [selected, setSelected] = useState<ListingDraftResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [filters, setFilters] = useState<DraftSearchValues>({});
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
@@ -234,6 +240,20 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
     }
   };
 
+  const deleteDraft = async (nextDraftId: string) => {
+    setDeletingId(nextDraftId);
+    try {
+      await deleteListingDraft(nextDraftId);
+      message.success('草稿已删除');
+      if (selected?.draftId === nextDraftId) setSelected(null);
+      await loadPage(pagination.current, pagination.pageSize, filters);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '草稿删除失败');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const columns: ColumnsType<ListingDraftResponse> = [
     {
       title: '草稿',
@@ -265,7 +285,7 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
     },
     {
       title: '操作',
-      width: 160,
+      width: 220,
       render: (_, record) => (
         <Space>
           <Button size="small" onClick={() => setSelected(record)}>
@@ -280,6 +300,21 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
           >
             上架
           </Button>
+          <Popconfirm
+            title="确认删除草稿？"
+            description="将同时永久删除服务器上的素材包，此操作不可恢复。"
+            onConfirm={() => deleteDraft(record.draftId)}
+          >
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              loading={deletingId === record.draftId}
+              disabled={!canDelete(record)}
+              size="small"
+            >
+              删除
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -345,14 +380,30 @@ export function DraftReviewPage({ draftId }: DraftReviewPageProps) {
         onClose={() => setSelected(null)}
         extra={
           selected ? (
-            <Button
-              type="primary"
-              loading={publishingId === selected.draftId}
-              disabled={!canPublish(selected)}
-              onClick={() => publishDraft(selected.draftId)}
-            >
-              上架
-            </Button>
+            <Space>
+              <Button
+                type="primary"
+                loading={publishingId === selected.draftId}
+                disabled={!canPublish(selected)}
+                onClick={() => publishDraft(selected.draftId)}
+              >
+                上架
+              </Button>
+              <Popconfirm
+                title="确认删除草稿？"
+                description="将同时永久删除服务器上的素材包，此操作不可恢复。"
+                onConfirm={() => deleteDraft(selected.draftId)}
+              >
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={deletingId === selected.draftId}
+                  disabled={!canDelete(selected)}
+                >
+                  删除
+                </Button>
+              </Popconfirm>
+            </Space>
           ) : null
         }
       >

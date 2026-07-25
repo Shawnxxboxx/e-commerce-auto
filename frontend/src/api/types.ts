@@ -25,7 +25,10 @@ export interface MaterialTransactionRow {
 }
 
 export interface ProductMaterialPackage {
-  materialPackagePath?: string;
+  materialPackageId: string;
+  originalDirectoryName: string;
+  fileCount: number;
+  totalSize: number;
   productName: string;
   sourceUrl: string;
   shopName: string;
@@ -65,7 +68,7 @@ export interface ListingDraftPreview {
   templateName?: string;
   titlePromptSnapshot?: string;
   mainImagePromptSnapshot?: string;
-  materialPackagePath?: string;
+  materialPackageId?: string;
   status?: ListingDraftStatus;
   shopName: string;
   categoryName: string;
