@@ -13,9 +13,13 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -64,6 +68,28 @@ public class MaterialPackageService {
         return storage.resolvePackage(materialPackageId);
     }
 
+    public MaterialFile file(String materialPackageId, String relativePath) {
+        try {
+            require(materialPackageId);
+        } catch (IllegalArgumentException exception) {
+            throw new MaterialFileNotFoundException("素材包不存在: " + materialPackageId);
+        }
+
+        Path path;
+        try {
+            path = storage.resolveFile(materialPackageId, relativePath);
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidMaterialFileException(exception.getMessage());
+        }
+        if (!isImage(path)) {
+            throw new InvalidMaterialFileException("非法素材图片路径: " + relativePath);
+        }
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+            throw new MaterialFileNotFoundException("素材图片不存在: " + relativePath);
+        }
+        return new MaterialFile(path, contentType(path));
+    }
+
     private MaterialPackageEntity toEntity(ProductMaterialPackage material, Path storedPath) {
         LocalDateTime now = LocalDateTime.now();
         MaterialPackageEntity entity = new MaterialPackageEntity();
@@ -99,6 +125,26 @@ public class MaterialPackageService {
         return totalSize;
     }
 
+    private String contentType(Path path) {
+        try {
+            String detected = Files.probeContentType(path);
+            if ("image/jpeg".equals(detected) || "image/png".equals(detected)) {
+                return detected;
+            }
+        } catch (IOException exception) {
+            throw new IllegalStateException("读取素材图片类型失败: " + path, exception);
+        }
+
+        return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".png")
+                ? "image/png"
+                : "image/jpeg";
+    }
+
+    private boolean isImage(Path path) {
+        String fileName = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        return fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".png");
+    }
+
     private List<String> relativePaths(Path packageRoot, List<String> imagePaths) {
         if (imagePaths == null) {
             return null;
@@ -130,6 +176,21 @@ public class MaterialPackageService {
             return objectMapper.writeValueAsString(material);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("素材包 JSON 序列化失败", exception);
+        }
+    }
+
+    public record MaterialFile(Path path, String contentType) {
+    }
+
+    public static class InvalidMaterialFileException extends IllegalArgumentException {
+        public InvalidMaterialFileException(String message) {
+            super(message);
+        }
+    }
+
+    public static class MaterialFileNotFoundException extends IllegalArgumentException {
+        public MaterialFileNotFoundException(String message) {
+            super(message);
         }
     }
 }
