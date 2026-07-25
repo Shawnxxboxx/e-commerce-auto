@@ -29,9 +29,10 @@ public class MaterialPackageController {
     private final MaterialPackageService service;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public MaterialPackageResponse upload(@RequestPart String originalDirectoryName,
-                                          @RequestPart List<MultipartFile> files,
-                                          @RequestPart List<String> relativePaths) {
+    public MaterialPackageResponse upload(
+            @RequestParam(name = "originalDirectoryName") String originalDirectoryName,
+            @RequestPart("files") List<MultipartFile> files,
+            @RequestParam(name = "relativePaths") List<String> relativePaths) {
         return service.upload(originalDirectoryName, files, relativePaths);
     }
 

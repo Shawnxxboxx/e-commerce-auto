@@ -48,6 +48,7 @@ public class ListingDraftService {
     private final MabangPublisher mabangPublisher;
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final Object publishDeleteLock = new Object();
 
     public ListingDraftResponse startGeneration(GenerateListingDraftRequest request) {
         if (request.getTemplateId() == null) {
@@ -85,10 +86,16 @@ public class ListingDraftService {
     }
 
     public void delete(String draftId) {
+        synchronized (publishDeleteLock) {
+            deleteLocked(draftId);
+        }
+    }
+
+    private void deleteLocked(String draftId) {
         ListingDraftEntity entity = requireEntity(draftId);
         ListingDraftStatus status = ListingDraftStatus.valueOf(entity.getStatus());
         if (status == ListingDraftStatus.GENERATING || status == ListingDraftStatus.PUBLISHING) {
-            throw new IllegalArgumentException("生成或发布中的草稿不能删除");
+            throw new DraftConflictException("生成或发布中的草稿不能删除");
         }
 
         String materialPackageId = entity.getMaterialPackageId();
@@ -160,7 +167,24 @@ public class ListingDraftService {
     }
 
     public MabangPublisher.PublishResult publish(String draftId) {
+        PublishPreparation preparation;
+        synchronized (publishDeleteLock) {
+            preparation = preparePublish(draftId);
+        }
+
+        MabangPublisher.PublishResult result = mabangPublisher.publish(preparation.request());
+        synchronized (publishDeleteLock) {
+            finishPublish(draftId, preparation.draft(), result);
+        }
+        return result;
+    }
+
+    private PublishPreparation preparePublish(String draftId) {
         ListingDraftEntity entity = requireEntity(draftId);
+        ListingDraftStatus status = ListingDraftStatus.valueOf(entity.getStatus());
+        if (status == ListingDraftStatus.GENERATING || status == ListingDraftStatus.PUBLISHING) {
+            throw new DraftConflictException("生成或发布中的草稿不能重复发布");
+        }
         ListingDraft draft = readDraft(entity);
         enrichQualificationData(draft);
         enrichDescriptionImages(draft);
@@ -176,8 +200,11 @@ public class ListingDraftService {
         entity.setPublishRequestJson(toJson(request));
         entity.setUpdateTime(LocalDateTime.now());
         draftMapper.updateById(entity);
+        return new PublishPreparation(draft, request);
+    }
 
-        MabangPublisher.PublishResult result = mabangPublisher.publish(request);
+    private void finishPublish(String draftId, ListingDraft draft, MabangPublisher.PublishResult result) {
+        ListingDraftEntity entity = requireEntity(draftId);
         draft.setStatus(result.isSuccess() ? ListingDraftStatus.PUBLISHED : ListingDraftStatus.FAILED);
         entity.setStatus(draft.getStatus().name());
         entity.setDraftJson(toJson(draft));
@@ -186,7 +213,6 @@ public class ListingDraftService {
         entity.setPublishScreenshotPath(result.getScreenshotPath());
         entity.setUpdateTime(LocalDateTime.now());
         draftMapper.updateById(entity);
-        return result;
     }
 
     /**
@@ -273,13 +299,49 @@ public class ListingDraftService {
         ListingDraftResponse response = new ListingDraftResponse();
         response.setDraftId(entity.getDraftId());
         response.setStatus(entity.getStatus());
-        response.setDraft(readDraft(entity));
+        response.setDraft(toResponseDraft(entity));
         response.setLastErrorType(entity.getLastErrorType());
         response.setLastErrorMessage(entity.getLastErrorMessage());
         response.setPublishScreenshotPath(entity.getPublishScreenshotPath());
         response.setCreateTime(entity.getCreateTime());
         response.setUpdateTime(entity.getUpdateTime());
         return response;
+    }
+
+    private ListingDraft toResponseDraft(ListingDraftEntity entity) {
+        ListingDraft draft = readDraft(entity);
+        if (entity.getMaterialPackageId() == null || entity.getMaterialPackageId().isBlank()) {
+            return draft;
+        }
+
+        Path packageRoot = materialPackageService.packagePath(entity.getMaterialPackageId())
+                .toAbsolutePath()
+                .normalize();
+        draft.setProductMainImage(relativeImagePath(packageRoot, draft.getProductMainImage()));
+        draft.setProductSizeChartImage(relativeImagePath(packageRoot, draft.getProductSizeChartImage()));
+        draft.setProductDetailImages(relativeImagePaths(packageRoot, draft.getProductDetailImages()));
+        draft.setVariantPreviewImages(relativeImagePaths(packageRoot, draft.getVariantPreviewImages()));
+        draft.setDescriptionImagePaths(relativeImagePaths(packageRoot, draft.getDescriptionImagePaths()));
+        draft.setPackageImagePaths(relativeImagePaths(packageRoot, draft.getPackageImagePaths()));
+        return draft;
+    }
+
+    private List<String> relativeImagePaths(Path packageRoot, List<String> imagePaths) {
+        if (imagePaths == null) {
+            return null;
+        }
+        return imagePaths.stream().map(path -> relativeImagePath(packageRoot, path)).toList();
+    }
+
+    private String relativeImagePath(Path packageRoot, String imagePath) {
+        if (imagePath == null || imagePath.isBlank()) {
+            return imagePath;
+        }
+        Path image = Path.of(imagePath).toAbsolutePath().normalize();
+        if (!image.startsWith(packageRoot)) {
+            throw new IllegalArgumentException("草稿图片路径不在素材包目录内: " + imagePath);
+        }
+        return packageRoot.relativize(image).toString();
     }
 
     private ListingDraft readDraft(ListingDraftEntity entity) {
@@ -296,5 +358,8 @@ public class ListingDraftService {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("JSON 序列化失败", e);
         }
+    }
+
+    private record PublishPreparation(ListingDraft draft, TikTokPublishRequest request) {
     }
 }

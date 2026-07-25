@@ -148,3 +148,7 @@ export function deleteListingDraft(draftId: string): Promise<void> {
 export function materialImageUrl(materialPackageId: string, relativePath: string): string {
   return `/api/material-packages/${encodeURIComponent(materialPackageId)}/files?path=${encodeURIComponent(relativePath)}`;
 }
+
+export function localImageUrl(path: string): string {
+  return `/api/local-files/image?path=${encodeURIComponent(path)}`;
+}

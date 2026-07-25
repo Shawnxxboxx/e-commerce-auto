@@ -2,12 +2,15 @@ package com.auto.ecommerce.ecommerceauto.draft.service;
 
 import com.auto.ecommerce.ecommerceauto.draft.ai.AiDraftGenerationResult;
 import com.auto.ecommerce.ecommerceauto.draft.ai.ListingDraftAiGenerator;
+import com.auto.ecommerce.ecommerceauto.draft.controller.ListingDraftController;
 import com.auto.ecommerce.ecommerceauto.draft.dto.GenerateListingDraftRequest;
 import com.auto.ecommerce.ecommerceauto.draft.dto.ListingDraftResponse;
 import com.auto.ecommerce.ecommerceauto.draft.entity.ListingDraftEntity;
 import com.auto.ecommerce.ecommerceauto.draft.mapper.ListingDraftMapper;
 import com.auto.ecommerce.ecommerceauto.draft.model.ListingDraft;
 import com.auto.ecommerce.ecommerceauto.draft.model.ListingDraftStatus;
+import com.auto.ecommerce.ecommerceauto.draft.publish.ListingDraftToTikTokPublishRequestMapper;
+import com.auto.ecommerce.ecommerceauto.draft.validation.ListingDraftValidator;
 import com.auto.ecommerce.ecommerceauto.material.config.MaterialStorageProperties;
 import com.auto.ecommerce.ecommerceauto.material.entity.MaterialPackageEntity;
 import com.auto.ecommerce.ecommerceauto.material.mapper.MaterialPackageMapper;
@@ -16,10 +19,15 @@ import com.auto.ecommerce.ecommerceauto.material.parser.AttributeInfoTextParser;
 import com.auto.ecommerce.ecommerceauto.material.parser.MaterialPackageParser;
 import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageService;
 import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageStorageService;
+import com.auto.ecommerce.ecommerceauto.playwright.MabangPublisher;
+import com.auto.ecommerce.ecommerceauto.playwright.PlaywrightProperties;
+import com.auto.ecommerce.ecommerceauto.playwright.TikTokPublishRequest;
 import com.auto.ecommerce.ecommerceauto.template.entity.SopTemplateEntity;
 import com.auto.ecommerce.ecommerceauto.template.mapper.SopTemplateMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
@@ -30,9 +38,16 @@ import java.lang.reflect.Proxy;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ListingDraftServiceTest {
 
@@ -101,6 +116,46 @@ class ListingDraftServiceTest {
     }
 
     @Test
+    void returnsRelativeImagePathsWithoutMutatingStoredDraftJson() throws Exception {
+        RecordingDraftMapper recorded = new RecordingDraftMapper();
+        ListingDraft storedDraft = draftWithImages(MATERIAL_PATH);
+        recorded.selected = draftWithStatus(ListingDraftStatus.GENERATED, MATERIAL_ID);
+        recorded.selected.setMaterialPackagePath(MATERIAL_PATH.toString());
+        recorded.selected.setDraftJson(new ObjectMapper().writeValueAsString(storedDraft));
+        String storedJson = recorded.selected.getDraftJson();
+
+        ListingDraftResponse response = service(
+                recorded, new StubMaterialService(materialEntity(), MATERIAL_PATH)).get("draft-1");
+
+        ListingDraft responseDraft = response.getDraft();
+        assertThat(responseDraft.getProductMainImage()).isEqualTo("AI生成/main.png");
+        assertThat(responseDraft.getProductSizeChartImage()).isEqualTo("尺码表/size.jpg");
+        assertThat(responseDraft.getProductDetailImages()).containsExactly("副图/detail.jpg");
+        assertThat(responseDraft.getVariantPreviewImages()).containsExactly("尺码表/variant.png");
+        assertThat(responseDraft.getDescriptionImagePaths())
+                .containsExactly("AI生成/main.png", "副图/detail.jpg");
+        assertThat(responseDraft.getPackageImagePaths()).containsExactly("包装图/package.jpg");
+        assertThat(recorded.selected.getDraftJson()).isEqualTo(storedJson);
+        assertThat(new ObjectMapper().readValue(storedJson, ListingDraft.class).getProductMainImage())
+                .isEqualTo(MATERIAL_PATH.resolve("AI生成/main.png").toString());
+    }
+
+    @Test
+    void keepsAbsoluteImagePathsForLegacyDraftWithoutMaterialPackageId() throws Exception {
+        RecordingDraftMapper recorded = new RecordingDraftMapper();
+        ListingDraft storedDraft = draftWithImages(MATERIAL_PATH);
+        recorded.selected = draftWithStatus(ListingDraftStatus.GENERATED, null);
+        recorded.selected.setDraftJson(new ObjectMapper().writeValueAsString(storedDraft));
+        StubMaterialService materialService = new StubMaterialService(materialEntity(), MATERIAL_PATH);
+
+        ListingDraftResponse response = service(recorded, materialService).get("draft-1");
+
+        assertThat(response.getDraft().getProductMainImage())
+                .isEqualTo(MATERIAL_PATH.resolve("AI生成/main.png").toString());
+        assertThat(materialService.packagePathRequest).isNull();
+    }
+
+    @Test
     void rejectsDeletingGeneratingDraft() {
         assertDeletingActiveDraftIsRejected(ListingDraftStatus.GENERATING);
     }
@@ -108,6 +163,63 @@ class ListingDraftServiceTest {
     @Test
     void rejectsDeletingPublishingDraft() {
         assertDeletingActiveDraftIsRejected(ListingDraftStatus.PUBLISHING);
+    }
+
+    @Test
+    void returnsConflictWhenDeletingActiveDraft() throws Exception {
+        RecordingDraftMapper draftMapper = new RecordingDraftMapper();
+        draftMapper.selected = draftWithStatus(ListingDraftStatus.PUBLISHING, MATERIAL_ID);
+        ListingDraftService service = service(
+                draftMapper, materialService(new RecordingMaterialMapper(), new RecordingStorage()));
+        MockMvc mockMvc = MockMvcBuilders.standaloneSetup(new ListingDraftController(service)).build();
+
+        mockMvc.perform(delete("/api/listing-drafts/draft-1"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void rejectsDeleteThatStartsWhilePublishIsPreparing() throws Exception {
+        RecordingDraftMapper draftMapper = new RecordingDraftMapper();
+        ListingDraft draft = draftWithImages(MATERIAL_PATH);
+        draft.setStatus(ListingDraftStatus.GENERATED);
+        draftMapper.selected = draftWithStatus(ListingDraftStatus.GENERATED, null);
+        draftMapper.selected.setDraftJson(new ObjectMapper().writeValueAsString(draft));
+        BlockingValidator validator = new BlockingValidator();
+        BlockingPublisher publisher = new BlockingPublisher();
+        ListingDraftService service = new ListingDraftService(
+                draftMapper.proxy(), templateMapper(template()), new StubParser(material()),
+                new StubMaterialService(materialEntity(), MATERIAL_PATH), new ListingDraftFactory(),
+                new RecordingWorker(), validator, new ListingDraftToTikTokPublishRequestMapper(),
+                publisher, transactionTemplate());
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<MabangPublisher.PublishResult> publish = executor.submit(() -> service.publish("draft-1"));
+            assertThat(validator.entered.await(2, TimeUnit.SECONDS)).isTrue();
+            Future<Throwable> deletion = executor.submit(() -> {
+                try {
+                    service.delete("draft-1");
+                    return null;
+                } catch (Throwable exception) {
+                    return exception;
+                }
+            });
+
+            validator.proceed.countDown();
+            assertThat(publisher.entered.await(2, TimeUnit.SECONDS)).isTrue();
+            Throwable deleteError = deletion.get(2, TimeUnit.SECONDS);
+            publisher.proceed.countDown();
+            publish.get(2, TimeUnit.SECONDS);
+
+            assertThat(deleteError)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("不能删除");
+            assertThat(draftMapper.deletedId).isNull();
+        } finally {
+            validator.proceed.countDown();
+            publisher.proceed.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test
@@ -279,6 +391,24 @@ class ListingDraftServiceTest {
         return entity;
     }
 
+    private static ListingDraft draftWithImages(Path materialRoot) {
+        ListingDraft draft = new ListingDraft();
+        draft.setDraftId("draft-1");
+        draft.setMaterialPackageId(MATERIAL_ID);
+        draft.setMaterialPackagePath(materialRoot.toString());
+        draft.setManufacturer("manufacturer");
+        draft.setEuResponsiblePerson("responsible-person");
+        draft.setProductMainImage(materialRoot.resolve("AI生成/main.png").toString());
+        draft.setProductSizeChartImage(materialRoot.resolve("尺码表/size.jpg").toString());
+        draft.setProductDetailImages(List.of(materialRoot.resolve("副图/detail.jpg").toString()));
+        draft.setVariantPreviewImages(List.of(materialRoot.resolve("尺码表/variant.png").toString()));
+        draft.setDescriptionImagePaths(List.of(
+                materialRoot.resolve("AI生成/main.png").toString(),
+                materialRoot.resolve("副图/detail.jpg").toString()));
+        draft.setPackageImagePaths(List.of(materialRoot.resolve("包装图/package.jpg").toString()));
+        return draft;
+    }
+
     private static AiDraftGenerationResult aiResult() {
         AiDraftGenerationResult result = new AiDraftGenerationResult();
         result.setChineseTitle("测试商品");
@@ -436,6 +566,43 @@ class ListingDraftServiceTest {
         @Override
         public void generate(String draftId) {
             generatedDraftId = draftId;
+        }
+    }
+
+    private static final class BlockingValidator extends ListingDraftValidator {
+        private final CountDownLatch entered = new CountDownLatch(1);
+        private final CountDownLatch proceed = new CountDownLatch(1);
+
+        @Override
+        public List<String> validate(ListingDraft draft) {
+            entered.countDown();
+            await(proceed);
+            return List.of();
+        }
+    }
+
+    private static final class BlockingPublisher extends MabangPublisher {
+        private final CountDownLatch entered = new CountDownLatch(1);
+        private final CountDownLatch proceed = new CountDownLatch(1);
+
+        private BlockingPublisher() {
+            super(new PlaywrightProperties());
+        }
+
+        @Override
+        public PublishResult publish(TikTokPublishRequest request) {
+            entered.countDown();
+            await(proceed);
+            return PublishResult.success("ok", null, 1, null);
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("测试线程被中断", exception);
         }
     }
 

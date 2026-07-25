@@ -49,7 +49,7 @@ public class MaterialPackageStorageService {
         long totalSize = 0;
         for (int index = 0; index < files.size(); index++) {
             MultipartFile file = Objects.requireNonNull(files.get(index), "文件不能为空");
-            Path target = checkedTarget(packageRoot, relativePaths.get(index));
+            Path target = checkedUploadTarget(packageRoot, relativePaths.get(index));
             if (!targets.add(target)) {
                 throw new IllegalArgumentException("素材路径重复: " + relativePaths.get(index));
             }
@@ -66,7 +66,7 @@ public class MaterialPackageStorageService {
             Files.createDirectories(temporaryRoot);
 
             for (int index = 0; index < files.size(); index++) {
-                Path target = checkedTarget(temporaryRoot, relativePaths.get(index));
+                Path target = checkedUploadTarget(temporaryRoot, relativePaths.get(index));
                 Files.createDirectories(target.getParent());
                 try (InputStream input = files.get(index).getInputStream()) {
                     Files.copy(input, target);
@@ -115,12 +115,20 @@ public class MaterialPackageStorageService {
             throw new IllegalArgumentException("非法素材路径: " + relativePath);
         }
         Path relative = Path.of(relativePath).normalize();
-        if (relative.isAbsolute() || relative.startsWith("..") || !isAllowed(relative)) {
+        if (relative.isAbsolute() || relative.startsWith("..")) {
             throw new IllegalArgumentException("非法素材路径: " + relativePath);
         }
         Path target = packageRoot.resolve(relative).normalize();
         if (!target.startsWith(packageRoot)) {
             throw new IllegalArgumentException("素材路径越界: " + relativePath);
+        }
+        return target;
+    }
+
+    private Path checkedUploadTarget(Path packageRoot, String relativePath) {
+        Path target = checkedTarget(packageRoot, relativePath);
+        if (!isAllowed(packageRoot.relativize(target))) {
+            throw new IllegalArgumentException("非法素材路径: " + relativePath);
         }
         return target;
     }

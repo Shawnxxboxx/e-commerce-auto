@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Empty, Image, Typography } from 'antd';
-import { materialImageUrl } from '../api/client';
+import { localImageUrl, materialImageUrl } from '../api/client';
 
 interface ImagePathPreviewProps {
   materialPackageId?: string;
@@ -20,10 +20,6 @@ export function ImagePathPreview({ materialPackageId, paths, emptyText = '暂无
     return <Empty description={emptyText} />;
   }
 
-  if (!materialPackageId) {
-    return <Empty description="素材包不可用" />;
-  }
-
   const markFailed = (path: string) => {
     setFailedPaths((current) => new Set(current).add(path));
   };
@@ -41,7 +37,7 @@ export function ImagePathPreview({ materialPackageId, paths, emptyText = '暂无
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="加载失败" />
                 ) : (
                   <Image
-                    src={materialImageUrl(materialPackageId, path)}
+                    src={materialPackageId ? materialImageUrl(materialPackageId, path) : localImageUrl(path)}
                     alt={fileName(path)}
                     onError={() => markFailed(path)}
                     preview={{ mask: '点击放大' }}

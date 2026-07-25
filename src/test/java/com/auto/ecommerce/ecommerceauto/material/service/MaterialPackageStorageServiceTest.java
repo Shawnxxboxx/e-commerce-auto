@@ -43,7 +43,7 @@ class MaterialPackageStorageServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"主图/a.txt", "副图/a.gif", "尺码表/nested/a.jpg"})
+    @ValueSource(strings = {"主图/a.txt", "副图/a.gif", "尺码表/nested/a.jpg", "AI生成/a.png"})
     void rejectsNonImageFilesAndNestedDirectories(String relativePath) {
         MaterialPackageStorageService service = storageService();
 

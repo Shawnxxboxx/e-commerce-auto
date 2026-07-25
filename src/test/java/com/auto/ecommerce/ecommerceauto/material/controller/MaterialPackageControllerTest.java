@@ -1,6 +1,7 @@
 package com.auto.ecommerce.ecommerceauto.material.controller;
 
 import com.auto.ecommerce.ecommerceauto.material.config.MaterialStorageProperties;
+import com.auto.ecommerce.ecommerceauto.material.dto.MaterialPackageResponse;
 import com.auto.ecommerce.ecommerceauto.material.entity.MaterialPackageEntity;
 import com.auto.ecommerce.ecommerceauto.material.mapper.MaterialPackageMapper;
 import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageService;
@@ -9,8 +10,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
@@ -24,13 +27,16 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.SecureDirectoryStream;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -61,6 +67,48 @@ class MaterialPackageControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.IMAGE_JPEG))
                 .andExpect(content().bytes(new byte[] {1, 2, 3}));
+    }
+
+    @Test
+    void bindsRepeatedRelativePathsInFileOrder() throws Exception {
+        AtomicReference<String> directoryName = new AtomicReference<>();
+        AtomicReference<List<String>> fileNames = new AtomicReference<>();
+        AtomicReference<List<String>> paths = new AtomicReference<>();
+        MaterialPackageService uploadService = new MaterialPackageService(null, null, null, null) {
+            @Override
+            public MaterialPackageResponse upload(String originalDirectoryName, List<MultipartFile> files,
+                                                  List<String> relativePaths) {
+                directoryName.set(originalDirectoryName);
+                fileNames.set(files.stream().map(MultipartFile::getOriginalFilename).toList());
+                paths.set(List.copyOf(relativePaths));
+                return new MaterialPackageResponse();
+            }
+        };
+        MockMvc uploadMockMvc = MockMvcBuilders
+                .standaloneSetup(new MaterialPackageController(uploadService))
+                .build();
+
+        uploadMockMvc.perform(multipart("/api/material-packages")
+                        .file(new MockMultipartFile("files", "main.jpg", "image/jpeg", new byte[] {1}))
+                        .file(new MockMultipartFile("files", "detail.png", "image/png", new byte[] {2}))
+                        .param("originalDirectoryName", "眼镜素材")
+                        .param("relativePaths", "主图/main.jpg", "副图/detail.png"))
+                .andExpect(status().isOk());
+
+        assertThat(directoryName.get()).isEqualTo("眼镜素材");
+        assertThat(fileNames.get()).containsExactly("main.jpg", "detail.png");
+        assertThat(paths.get()).containsExactly("主图/main.jpg", "副图/detail.png");
+    }
+
+    @Test
+    void servesServerGeneratedAiImage() throws Exception {
+        Files.createDirectories(packageRoot.resolve("AI生成"));
+        Files.write(packageRoot.resolve("AI生成/generated.png"), new byte[] {4, 5, 6});
+
+        mockMvc.perform(get("/api/material-packages/material-1/files").param("path", "AI生成/generated.png"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(content().bytes(new byte[] {4, 5, 6}));
     }
 
     @Test
