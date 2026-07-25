@@ -249,25 +249,33 @@ public class MabangPublisher {
     /**
      * 保存成功后马帮会弹出“刊登信息保存成功”提示，必须关闭弹窗才能结束本次刊登页面。
      * 弹窗通常在表单 iframe 中，兼容部分页面版本把弹窗渲染到外层页面的情况。
+     * VPN / 慢网络下弹窗可能延迟出现，用轮询等待而非直接判否。
      */
     private void closeSaveSuccessDialog(Page page, FrameLocator formFrame) {
         Locator closeButton = formFrame.getByRole(AriaRole.BUTTON,
                 new FrameLocator.GetByRoleOptions().setName("关闭此页面").setExact(true));
-        if (closeButton.count() > 0 && closeButton.first().isVisible()) {
-            closeButton.first().click();
-            log.info("已关闭刊登成功提示页面");
-            return;
-        }
-
         Locator outerCloseButton = page.getByRole(AriaRole.BUTTON,
                 new Page.GetByRoleOptions().setName("关闭此页面").setExact(true));
-        if (outerCloseButton.count() > 0 && outerCloseButton.first().isVisible()) {
-            outerCloseButton.first().click();
-            log.info("已关闭刊登成功提示页面");
-            return;
+
+        long deadline = System.currentTimeMillis() + properties.getTimeoutMs();
+        while (System.currentTimeMillis() < deadline) {
+            // 优先在 iframe 内找
+            if (closeButton.count() > 0 && closeButton.first().isVisible()) {
+                closeButton.first().click();
+                log.info("已关闭刊登成功提示页面 (iframe)");
+                return;
+            }
+            // 兼容弹窗在外层页面的版本
+            if (outerCloseButton.count() > 0 && outerCloseButton.first().isVisible()) {
+                outerCloseButton.first().click();
+                log.info("已关闭刊登成功提示页面 (外层)");
+                return;
+            }
+            pageWait(500);
         }
 
-        throw new RuntimeException("保存后未找到“关闭此页面”按钮，无法确认刊登页面已关闭");
+        throw new RuntimeException("保存后未找到“关闭此页面”按钮（等待 " + properties.getTimeoutMs()
+                + "ms），无法确认刊登页面已关闭，请检查网络或 VPN 状态");
     }
 
     /**
