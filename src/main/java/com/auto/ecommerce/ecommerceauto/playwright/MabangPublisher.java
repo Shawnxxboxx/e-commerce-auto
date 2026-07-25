@@ -493,7 +493,25 @@ public class MabangPublisher {
             throw new RuntimeException("类目「选择类目」按钮不可见，可能已选过类目: " + categoryName);
         }
         selectBtn.click();
-        pageWait(1000);
+
+        // VPN / 慢网络下弹窗和类目树可能延迟较久，等待至少一个类目节点出现再开始逐级下钻
+        long categoryPanelDeadline = System.currentTimeMillis() + properties.getTimeoutMs();
+        boolean panelReady = false;
+        while (System.currentTimeMillis() < categoryPanelDeadline) {
+            try {
+                frame.locator("label.el-transfer-panel-item:visible").first()
+                        .waitFor(new Locator.WaitForOptions().setTimeout(5000));
+                panelReady = true;
+                break;
+            } catch (Exception ignored) {
+                log.debug("类目面板尚未就绪，继续等待...");
+                pageWait(1000);
+            }
+        }
+        if (!panelReady) {
+            throw new RuntimeException("类目弹窗未在 " + properties.getTimeoutMs() + "ms 内打开，请检查网络或 VPN 状态");
+        }
+        pageWait(500);
 
         // 2. 逐级下钻：在当前可见节点中匹配本级文本，点箭头(选中+展开)或叶子节点
         String[] levels = categoryName.split("[>/]");
@@ -505,7 +523,7 @@ public class MabangPublisher {
                     .filter(new Locator.FilterOptions().setHasText(level))
                     .first();
             try {
-                item.waitFor(new Locator.WaitForOptions().setTimeout(4000));
+                item.waitFor(new Locator.WaitForOptions().setTimeout(10000));
                 Locator arrow = item.locator("i.has-children");
                 if (arrow.isVisible()) {
                     // 马帮的展开事件绑定在整行 label 上，点击箭头本身不会触发展开。
@@ -515,7 +533,8 @@ public class MabangPublisher {
                 }
                 selected = level;
                 log.debug("已选类目层级: {}", level);
-                pageWait(800);
+                // 等待子级节点渲染出来
+                pageWait(1000);
             } catch (Exception e) {
                 // 诊断：dump 当前弹窗内"可见"的类目项文本，定位是弹窗没打开、还是该级确实无此节点。
                 List<String> visibleItems;
