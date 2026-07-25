@@ -6,8 +6,6 @@ import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageService.
 import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageService.MaterialFile;
 import com.auto.ecommerce.ecommerceauto.material.service.MaterialPackageService.MaterialFileNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -38,11 +36,11 @@ public class MaterialPackageController {
     }
 
     @GetMapping("/{materialPackageId}/files")
-    public ResponseEntity<Resource> file(@PathVariable String materialPackageId, @RequestParam String path) {
+    public ResponseEntity<byte[]> file(@PathVariable String materialPackageId, @RequestParam String path) {
         MaterialFile materialFile = service.file(materialPackageId, path);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(materialFile.contentType()))
-                .body(new FileSystemResource(materialFile.path()));
+                .body(materialFile.content());
     }
 
     @ExceptionHandler(InvalidMaterialFileException.class)

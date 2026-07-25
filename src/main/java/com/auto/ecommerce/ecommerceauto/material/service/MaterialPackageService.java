@@ -14,17 +14,27 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SecureDirectoryStream;
+import java.nio.file.StandardOpenOption;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class MaterialPackageService {
+
+    private static final Set<String> ALLOWED_IMAGE_DIRECTORIES = Set.of("主图", "副图", "尺码表", "包装图");
 
     private final MaterialPackageMapper mapper;
     private final MaterialPackageStorageService storage;
@@ -75,19 +85,22 @@ public class MaterialPackageService {
             throw new MaterialFileNotFoundException("素材包不存在: " + materialPackageId);
         }
 
+        Path packageRoot;
         Path path;
         try {
+            packageRoot = storage.resolvePackage(materialPackageId);
             path = storage.resolveFile(materialPackageId, relativePath);
         } catch (IllegalArgumentException exception) {
             throw new InvalidMaterialFileException(exception.getMessage());
         }
-        if (!isImage(path)) {
+        Path relative = packageRoot.relativize(path);
+        if (!path.startsWith(packageRoot)
+                || relative.getNameCount() != 2
+                || !ALLOWED_IMAGE_DIRECTORIES.contains(relative.getName(0).toString())
+                || !isImage(relative)) {
             throw new InvalidMaterialFileException("非法素材图片路径: " + relativePath);
         }
-        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
-            throw new MaterialFileNotFoundException("素材图片不存在: " + relativePath);
-        }
-        return new MaterialFile(path, contentType(path));
+        return new MaterialFile(readSecurely(packageRoot, relative, relativePath), contentType(path));
     }
 
     private MaterialPackageEntity toEntity(ProductMaterialPackage material, Path storedPath) {
@@ -145,6 +158,38 @@ public class MaterialPackageService {
         return fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".png");
     }
 
+    private byte[] readSecurely(Path packageRoot, Path relative, String requestedPath) {
+        Path storageRoot = packageRoot.getParent();
+        if (storageRoot == null) {
+            throw new IllegalStateException("素材存储根目录无效: " + packageRoot);
+        }
+
+        try (DirectoryStream<Path> rootStream = openDirectoryStream(storageRoot)) {
+            if (!(rootStream instanceof SecureDirectoryStream<?>)) {
+                throw new IllegalStateException("文件系统不支持 SecureDirectoryStream，拒绝读取素材图片");
+            }
+            @SuppressWarnings("unchecked")
+            SecureDirectoryStream<Path> secureRoot = (SecureDirectoryStream<Path>) rootStream;
+            try (SecureDirectoryStream<Path> packageStream = secureRoot.newDirectoryStream(
+                    packageRoot.getFileName(), LinkOption.NOFOLLOW_LINKS);
+                 SecureDirectoryStream<Path> imageStream = packageStream.newDirectoryStream(
+                         relative.getName(0), LinkOption.NOFOLLOW_LINKS);
+                 SeekableByteChannel channel = imageStream.newByteChannel(
+                         relative.getFileName(), Set.of(StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS));
+                 InputStream input = Channels.newInputStream(channel)) {
+                return input.readAllBytes();
+            }
+        } catch (NoSuchFileException exception) {
+            throw new MaterialFileNotFoundException("素材图片不存在: " + requestedPath);
+        } catch (IOException exception) {
+            throw new InvalidMaterialFileException("非法素材图片路径: " + requestedPath, exception);
+        }
+    }
+
+    protected DirectoryStream<Path> openDirectoryStream(Path directory) throws IOException {
+        return Files.newDirectoryStream(directory);
+    }
+
     private List<String> relativePaths(Path packageRoot, List<String> imagePaths) {
         if (imagePaths == null) {
             return null;
@@ -179,12 +224,16 @@ public class MaterialPackageService {
         }
     }
 
-    public record MaterialFile(Path path, String contentType) {
+    public record MaterialFile(byte[] content, String contentType) {
     }
 
     public static class InvalidMaterialFileException extends IllegalArgumentException {
         public InvalidMaterialFileException(String message) {
             super(message);
+        }
+
+        public InvalidMaterialFileException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 
