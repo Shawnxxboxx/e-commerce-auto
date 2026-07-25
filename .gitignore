@@ -41,3 +41,6 @@ build/
 ### VS Code ###
 .vscode/
 /src/main/resources/templates/素材/
+.git/lfs-bin/
+/src/main/resources/generated/*.jar
+/data/
