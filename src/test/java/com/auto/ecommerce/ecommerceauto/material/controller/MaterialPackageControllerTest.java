@@ -95,6 +95,17 @@ class MaterialPackageControllerTest {
     }
 
     @Test
+    void rejectsImageWhenFinalFileIsSymlink() throws Exception {
+        Path outside = tempDir.resolve("outside.jpg");
+        Files.write(outside, new byte[] {4, 5, 6});
+        Files.delete(packageRoot.resolve("主图/1.jpg"));
+        Files.createSymbolicLink(packageRoot.resolve("主图/1.jpg"), outside);
+
+        mockMvc.perform(get("/api/material-packages/material-1/files").param("path", "主图/1.jpg"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void returnsNotFoundForMissingMaterialPackageWithoutResolvingFile() throws Exception {
         AtomicBoolean resolved = new AtomicBoolean();
         MaterialPackageStorageService storage = new MaterialPackageStorageService(
@@ -161,6 +172,7 @@ class MaterialPackageControllerTest {
                 new Class<?>[] {SecureDirectoryStream.class},
                 (proxy, method, arguments) -> switch (method.getName()) {
                     case "newDirectoryStream" -> {
+                        assertThat((LinkOption[]) arguments[1]).contains(LinkOption.NOFOLLOW_LINKS);
                         Path child = directory.resolve((Path) arguments[0]).normalize();
                         if (Files.notExists(child, LinkOption.NOFOLLOW_LINKS)) {
                             throw new NoSuchFileException(child.toString());
@@ -170,9 +182,11 @@ class MaterialPackageControllerTest {
                         }
                         yield secureDirectoryStream(child);
                     }
-                    case "newByteChannel" -> Files.newByteChannel(
-                            directory.resolve((Path) arguments[0]).normalize(),
-                            (Set<? extends OpenOption>) arguments[1]);
+                    case "newByteChannel" -> {
+                        Set<? extends OpenOption> options = (Set<? extends OpenOption>) arguments[1];
+                        assertThat(options.stream().anyMatch(LinkOption.NOFOLLOW_LINKS::equals)).isTrue();
+                        yield Files.newByteChannel(directory.resolve((Path) arguments[0]).normalize(), options);
+                    }
                     case "close" -> null;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
