@@ -20,7 +20,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -32,6 +35,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ListingDraftService {
 
+    private static final Logger log = LoggerFactory.getLogger(ListingDraftService.class);
+
     private final ListingDraftMapper draftMapper;
     private final SopTemplateMapper templateMapper;
     private final MaterialPackageParser materialPackageParser;
@@ -41,6 +46,7 @@ public class ListingDraftService {
     private final ListingDraftValidator validator;
     private final ListingDraftToTikTokPublishRequestMapper publishRequestMapper;
     private final MabangPublisher mabangPublisher;
+    private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ListingDraftResponse startGeneration(GenerateListingDraftRequest request) {
@@ -76,6 +82,38 @@ public class ListingDraftService {
 
     public ListingDraftResponse get(String draftId) {
         return toResponse(requireEntity(draftId));
+    }
+
+    public void delete(String draftId) {
+        ListingDraftEntity entity = requireEntity(draftId);
+        ListingDraftStatus status = ListingDraftStatus.valueOf(entity.getStatus());
+        if (status == ListingDraftStatus.GENERATING || status == ListingDraftStatus.PUBLISHING) {
+            throw new IllegalArgumentException("生成或发布中的草稿不能删除");
+        }
+
+        String materialPackageId = entity.getMaterialPackageId();
+        if (materialPackageId == null || materialPackageId.isBlank()) {
+            transactionTemplate.executeWithoutResult(ignored -> deleteDraft(entity));
+            return;
+        }
+
+        materialPackageService.require(materialPackageId);
+        materialPackageService.quarantine(materialPackageId);
+        try {
+            transactionTemplate.executeWithoutResult(ignored -> {
+                deleteDraft(entity);
+                materialPackageService.delete(materialPackageId);
+            });
+        } catch (RuntimeException exception) {
+            restoreMaterialPackage(materialPackageId, exception);
+            throw exception;
+        }
+
+        try {
+            materialPackageService.purgeQuarantine(materialPackageId);
+        } catch (RuntimeException exception) {
+            log.error("清理素材包隔离区失败: {}", materialPackageId, exception);
+        }
     }
 
     public ListingDraftPageResponse list(int page, int size, String keyword, String status) {
@@ -198,6 +236,20 @@ public class ListingDraftService {
             throw new IllegalArgumentException("草稿不存在: " + draftId);
         }
         return entity;
+    }
+
+    private void deleteDraft(ListingDraftEntity entity) {
+        if (draftMapper.deleteById(entity.getId()) != 1) {
+            throw new IllegalStateException("草稿数据库删除失败: " + entity.getDraftId());
+        }
+    }
+
+    private void restoreMaterialPackage(String materialPackageId, RuntimeException original) {
+        try {
+            materialPackageService.restore(materialPackageId);
+        } catch (RuntimeException restoreException) {
+            original.addSuppressed(restoreException);
+        }
     }
 
     private ListingDraftEntity toEntity(ListingDraft draft) {

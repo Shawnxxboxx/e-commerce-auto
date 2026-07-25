@@ -78,6 +78,25 @@ public class MaterialPackageService {
         return storage.resolvePackage(materialPackageId);
     }
 
+    public void quarantine(String materialPackageId) {
+        storage.quarantine(materialPackageId);
+    }
+
+    public void restore(String materialPackageId) {
+        storage.restore(materialPackageId);
+    }
+
+    public void purgeQuarantine(String materialPackageId) {
+        storage.purgeQuarantine(materialPackageId);
+    }
+
+    public void delete(String materialPackageId) {
+        if (mapper.delete(new LambdaQueryWrapper<MaterialPackageEntity>()
+                .eq(MaterialPackageEntity::getMaterialPackageId, materialPackageId)) != 1) {
+            throw new IllegalStateException("素材包数据库删除失败: " + materialPackageId);
+        }
+    }
+
     public MaterialFile file(String materialPackageId, String relativePath) {
         try {
             require(materialPackageId);

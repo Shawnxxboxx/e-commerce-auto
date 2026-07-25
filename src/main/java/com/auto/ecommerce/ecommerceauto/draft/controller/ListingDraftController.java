@@ -6,6 +6,7 @@ import com.auto.ecommerce.ecommerceauto.draft.dto.ListingDraftResponse;
 import com.auto.ecommerce.ecommerceauto.draft.service.ListingDraftService;
 import com.auto.ecommerce.ecommerceauto.playwright.MabangPublisher;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -32,6 +33,12 @@ public class ListingDraftController {
     @GetMapping("/{draftId}")
     public ListingDraftResponse get(@PathVariable String draftId) {
         return service.get(draftId);
+    }
+
+    @DeleteMapping("/{draftId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable String draftId) {
+        service.delete(draftId);
     }
 
     @PostMapping("/{draftId}/publish")
