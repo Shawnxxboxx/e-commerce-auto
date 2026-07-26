@@ -101,6 +101,31 @@ public class MabangPublisher {
     // ========== 刊登流程 ==========
 
     /**
+     * 检测浏览器连接是否存活，锁屏/sleep 导致 CDP 断开时自动重连。
+     */
+    private BrowserContext getOrReconnectContext() {
+        if (browser != null) {
+            try {
+                // 快速探测连接是否存活
+                browser.version();
+                return browser.contexts().isEmpty()
+                        ? browser.newContext()
+                        : browser.contexts().get(0);
+            } catch (Exception e) {
+                log.warn("Chrome CDP 连接已断开（锁屏/休眠导致），正在重连... {}", e.getMessage());
+                try { browser.close(); } catch (Exception ignored) { }
+                try { playwright.close(); } catch (Exception ignored) { }
+                browser = null;
+                playwright = null;
+            }
+        }
+        initWithCdp();
+        return browser.contexts().isEmpty()
+                ? browser.newContext()
+                : browser.contexts().get(0);
+    }
+
+    /**
      * 执行 TikTok 全托管刊登
      *
      * @param request 刊登参数
@@ -109,20 +134,8 @@ public class MabangPublisher {
     public PublishResult publish(TikTokPublishRequest request) {
         long startTime = System.currentTimeMillis();
 
-        if (browser == null) {
-            try {
-                initWithCdp();
-            } catch (Exception e) {
-                log.error("连接 Chrome CDP 失败", e);
-                return PublishResult.failure("浏览器初始化失败，请确认 Chrome 已用 --remote-debugging-port="
-                        + properties.getPort() + " 启动: " + e.getMessage(), 0, null);
-            }
-        }
-
         try {
-            BrowserContext context = browser.contexts().isEmpty()
-                    ? browser.newContext()
-                    : browser.contexts().get(0);
+            BrowserContext context = getOrReconnectContext();
 
             // 在已有标签页中查找马帮页面
             Page page = context.newPage();
